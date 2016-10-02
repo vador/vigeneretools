@@ -1,4 +1,6 @@
-from hexHelpers.hexhelpers import hex2string, computefreqs
+from math import sqrt
+
+from hexHelpers.hexhelpers import computefreqs, charstrxor, hex2string
 
 COUNTS = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3955, 0, 0, 3955, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 19112,
           1,
@@ -46,33 +48,57 @@ FREQS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.026902748773901274,
          0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 
+def extracticypher(msg, i, keylength):
+    return msg[i::keylength]
+
+
+def computeDist(iFreqs):
+    dist = sqrt(sum([(x - y) * (x - y) for (x, y) in zip(FREQS, iFreqs)]))
+    return dist
+
+
+def isvalidpermutation(iFreqs):
+    myFreqs = iFreqs[:]
+    myFreqs[10] = 0
+    myFreqs[13] = 0
+    if sum(myFreqs[:32]) > 0:
+        return False
+    return True
+
+
+def getiposcandidates(cipher):
+    candidates = []
+    for xor in range(256):
+        print(".", end="")
+        icipher = charstrxor(chr(xor), cipher)
+        iFreqs = computefreqs(icipher)
+        if isvalidpermutation(iFreqs):
+            dist = computeDist(iFreqs)
+            candidates.append((xor, dist))
+
+    print()
+    candidates.sort(key=lambda x: x[1])
+    return candidates
+
+
 def compute():
     pass
 
 
-def computedist(freqs):
-    partsum = 0
-    for c in freqs:
-        partsum += c * c
-    return partsum
-
-
-def getKeyLen(message, maxlen):
-    distbylen = []
-    for i in range(1, maxlen):
-        msg = message[::i]
-        freqs = computefreqs(msg)
-        distbylen.append((i, computedist(freqs)))
-    return distbylen
-
-def getdistbylenforcyphertext():
+def getciphertext():
     with open("cyphertext.txt", "r") as f:
         HEXMSG = (f.read())
     MSG = hex2string(HEXMSG)
-    distbylen = getKeyLen(MSG, 100)
-    distbylen.sort(key=lambda x: x[1], reverse=True)
-    print(distbylen)
+    return MSG
+
 
 if __name__ == "__main__":
-    print(computedist(FREQS))
-    getdistbylenforcyphertext()
+    msg = getciphertext()
+    ipos1 = extracticypher(msg, 0, 23)
+    print(ipos1[:10])
+    print(charstrxor(hex2string("f4"), ipos1)[:10])
+    candid1 = getiposcandidates(ipos1)
+    print(candid1)
+    ipos2 = extracticypher(msg, 1, 23)
+    candid2 = getiposcandidates(ipos2)
+    print(candid2)

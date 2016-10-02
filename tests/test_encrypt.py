@@ -1,6 +1,7 @@
 from unittest import TestCase
 
 from VigenereEncrypt import printashex, encrypt
+from hexHelpers.hexhelpers import hex2string, charstrxor
 
 
 class TestEncrypt(TestCase):
@@ -16,3 +17,9 @@ class TestEncrypt(TestCase):
         ExpMSG = "f4c8c9d380c9d380c180d4c5d3d480cdc5d3d3c1c7c58e"
         TestEncrypt.assertEqual(self,MSG,printashex(encrypt(KEY,printashex(encrypt(KEY,MSG)))))
 
+    def test_should_encrypt_key_1_equal_xor(self):
+        KEY = "B3"
+        MSG = printashex("This is a test message.")
+        ENCRYPT = encrypt(KEY, MSG)
+        XOR = charstrxor(hex2string(KEY), hex2string(MSG))
+        TestEncrypt.assertEqual(self, ENCRYPT, XOR)
