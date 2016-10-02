@@ -77,8 +77,6 @@ def getKeyLen(message, maxlen):
     return distbylen
 
 
-def
-
 
 def getdistbylenforcyphertext():
     with open("cyphertext.txt", "r") as f:
