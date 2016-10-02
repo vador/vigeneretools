@@ -76,8 +76,6 @@ def getKeyLen(message, maxlen):
         distbylen.append((i, computedist(freqs)))
     return distbylen
 
-
-
 def getdistbylenforcyphertext():
     with open("cyphertext.txt", "r") as f:
         HEXMSG = (f.read())
