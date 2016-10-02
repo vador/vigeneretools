@@ -1,6 +1,6 @@
 from math import sqrt
 
-from hexHelpers.hexhelpers import computefreqs, charstrxor, hex2string
+from hexHelpers.hexhelpers import computefreqs, charstrxor, hex2string, printashex
 
 COUNTS = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3955, 0, 0, 3955, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 19112,
           1,
@@ -69,14 +69,12 @@ def isvalidpermutation(iFreqs):
 def getiposcandidates(cipher):
     candidates = []
     for xor in range(256):
-        print(".", end="")
         icipher = charstrxor(chr(xor), cipher)
         iFreqs = computefreqs(icipher)
         if isvalidpermutation(iFreqs):
             dist = computeDist(iFreqs)
             candidates.append((xor, dist))
 
-    print()
     candidates.sort(key=lambda x: x[1])
     return candidates
 
@@ -92,8 +90,22 @@ def getciphertext():
     return MSG
 
 
+def keycandidatesbydist(msg, keylength):
+    allkeycandidates = []
+    for i in range(keylength):
+        ipos = extracticypher(msg, i, keylength)
+        candid = getiposcandidates(ipos)
+        allkeycandidates.append(candid)
+    return allkeycandidates
+
+
+def keycandidatesreconstruct(keycandidateslist):
+    return "".join([chr(x[0][0]) for x in keycandidateslist])
+
+
 if __name__ == "__main__":
     msg = getciphertext()
+    """
     ipos1 = extracticypher(msg, 0, 23)
     print(ipos1[:10])
     print(charstrxor(hex2string("f4"), ipos1)[:10])
@@ -102,3 +114,7 @@ if __name__ == "__main__":
     ipos2 = extracticypher(msg, 1, 23)
     candid2 = getiposcandidates(ipos2)
     print(candid2)
+        """
+    kc = keycandidatesbydist(msg, 23)
+    kcrec = keycandidatesreconstruct(kc)
+    print(printashex(kcrec))

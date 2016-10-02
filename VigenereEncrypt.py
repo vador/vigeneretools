@@ -1,6 +1,3 @@
-import binascii
-
-
 def strxor(a, b):  # xor two strings of different lengths
     if len(a) > len(b):
         return "".join([chr(ord(x) ^ ord(y)) for (x, y) in zip(a[:len(b)], b)])
@@ -42,6 +39,7 @@ if __name__ == "__main__":
     KEY = "A0A0"
     MSG = printashex("This is a test message.")
     MSG = "f4c8c9d380c9d380c180d4c5d3d480cdc5d3d3c1c7c58e"
+    #      f4c8c9d380c9d380c180d4c5d3d480cdc5d3d3c1c7c58e
     # print(printashex(encrypt(KEY, MSG)))
     with open("sourcetext.txt", "r") as f:
         MSG = (f.read())
