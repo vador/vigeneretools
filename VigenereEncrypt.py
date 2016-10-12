@@ -41,7 +41,7 @@ if __name__ == "__main__":
     MSG = "f4c8c9d380c9d380c180d4c5d3d480cdc5d3d3c1c7c58e"
     #      f4c8c9d380c9d380c180d4c5d3d480cdc5d3d3c1c7c58e
     # print(printashex(encrypt(KEY, MSG)))
-    with open("sourcetext2.txt", "r") as f:
+    with open("sourcetext3.txt", "r") as f:
         MSG = (f.read())
     MSG2 = printashex(MSG)
     MSG3 = hex2string(MSG2)

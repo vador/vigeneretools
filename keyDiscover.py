@@ -61,8 +61,11 @@ def isvalidpermutation(iFreqs):
     myFreqs = iFreqs[:]
     myFreqs[10] = 0
     myFreqs[13] = 0
+
     if sum(myFreqs[:32]) > 0:
         return False
+    #if sum(myFreqs[48:58]) > 0:
+    #    return False
     return True
 
 
@@ -84,7 +87,7 @@ def compute():
 
 
 def getciphertext():
-    with open("cyphertext2.txt", "r") as f:
+    with open("cyphertext-bis.txt", "r") as f:
         HEXMSG = (f.read())
     MSG = hex2string(HEXMSG)
     return MSG
@@ -116,5 +119,6 @@ if __name__ == "__main__":
     print(candid2)
         """
     kc = keycandidatesbydist(msg, 7)
+    print(kc)
     kcrec = keycandidatesreconstruct(kc)
     print(printashex(kcrec))

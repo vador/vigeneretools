@@ -16,3 +16,5 @@ print(myFreqs)
 for freq in range(len(myFreqs)):
     myFreqs[freq] = myFreqs[freq] / nbCars
 print(myFreqs)
+print(len(myFreqs))
+print(list(zip(range(256),myFreqs)))

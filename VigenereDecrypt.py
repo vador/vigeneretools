@@ -54,10 +54,10 @@ def decrypt(hexkey, hexmessage):
 
 
 if __name__ == "__main__":
-    with open("cyphertext2.txt", "r") as f:
+    with open("cyphertext-bis.txt", "r") as f:
         MSG = (f.read())
     # MSG2 = printashex(MSG)
     # MSG3 = hex2string(MSG2)
     KEY = "f4c8c9d380c9c1"
-    # KEY = "f4c8c9d380c9"
+    KEY = "ba1f91b253cd3e"
     print((decrypt(KEY, MSG)))
