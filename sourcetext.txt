@@ -1,6 +1,4 @@
 Table des matières
-
-
 1 Rappels sur Kerberos
 
 2 Adaptation à lenvironnement Active Directory
@@ -25,22 +23,12 @@ Table des matières
 
 12 Conclusion
 
-
-
-
-
 Secrets dauthentification épisode II
 
 Kerberos contre-attaque
-
-
 Aurélien Bordes
 
 aurelien26@free.fr
-
-
-
-
 
 Résumé Lauthentification est un composant essentiel dans la sécurité des systèmes dinformation. Si de nombreux protocoles dauthentification coexistent, Kerberos sest largement imposé ces dernières années comme le protocole dauthentification sur les réseaux locaux, en particulier avec son adoption comme service principal dauthentification dans les environnements Active Directory.
 
@@ -48,28 +36,12 @@ Cependant, Kerberos est un protocole complexe, tant au niveau de son fonctionnem
 
 Cet article a deux objectifs. Le premier est détudier quelques spécificités du protocole Kerberos dans les environnements Active Directory et les impacts en matière de sécurité. Le second est de démontrer quen cas de compromission dune base de comptes Active Directory (récupération par un attaquant de toutes les empreintes des mots de passe), les conséquences sont graves et que la remédiation est bien plus lourde quun simple changement des mots de passe de quelques utilisateurs.
 
-
-
-
-
 1
-
-
-
-
 
 Rappels sur Kerberos
 
-
-
-
-
 1.1 Bases du protocole
-
-
 Cette partie rappelle, via quelques explications simplifiées, des points notables et les fondements du protocole utiles pour la compréhension de la suite de larticle. La RFC 4120, la principale norme en vigueur sur Kerberos, constitue, dans tous les cas, la référence de toutes les descriptions données ci-dessous.
-
-
 
 Tout dabord, il existe a minima trois acteurs dans un scénario dauthentification via Kerberos :
 
@@ -79,31 +51,17 @@ le serveur S qui doit sassurer de lauthenticité de C ;
 
 un tiers de confiance, le KDC.
 
-
-
-
-
 Chaque acteur possède un secret, noté KACTEUR. Si chaque acteur connaît son propre secret (C connaît KC, S connaît KS et KDC connaît KKDC), le tiers de confiance (cest-à-dire le KDC) connaît également tous les secrets des entités de son royaume de confiance Kerberos (appelé realm). Ainsi, les acteurs partagent tous leur secret avec le KDC, qui connaît donc KC et KS. En réalité, chaque acteur ne connaît pas quune seule clé, mais un ensemble de clés de différents types leur permettant dutiliser différents formats et algorithmes (MD5/DES, SHA-1/AES, etc.).
-
-
 
 Note : il y a souvent, y compris dans la suite de ce document, confusion entre serveur et service. Dans la majorité des cas, un client souhaite se connecter sur une instance dun service sexécutant sur un serveur donné (exemple : service cifs sur serveur-01.demo.test). Dans ce cas, KS fait référence à la clé du service cifs sur serveur-01. Cette confusion est amplifiée dans les environnements Active Directory où beaucoup de services (tels que le partage SMB de fichiers référencé par cifs) tournent sous les comptes de service LocalSystem1 ou NetworkService qui reposent sur le compte de la machine dans le domaine. Ainsi, dans lexemple de cifs, le service na pas de clé propre et KS fait référence à la clé du compte de la machine sur laquelle le service sexécute.
 
-
-
 Les clés notées K sont des clés ayant une durée de vie importante (de quelques semaines à linfini pour les clés nexpirant jamais). Il existe dautres clés dites clés de sessions (notées SACTEURS) partagées entre deux acteurs (par exemple SC,K pour une clé partagée entre un client et le KDC). Ces clés sont négociées durant lauthentification dun client et elles possèdent une durée de vie bien plus courte (quelques heures au maximum).
-
-
 
 Kerberos définit plusieurs structures de données, dont deux sont particulièrement importantes :
 
 les tickets, générés par les KDC et transmis aux clients. Il existe deux types de tickets : les ticket-granting tickets (notés TGT dans la suite) et les tickets de service. Ceux-ci sont identiques dans leur forme, mais diffèrent par leur utilisation. Les clients conservent les tickets afin de les présenter par la suite aux KDC ou aux serveurs. Les tickets sont considérés comme publics, les parties sensibles étant systématiquement chiffrées ;
 
 les authentifiants, générés par les clients et transmis avec un ticket lors de lauthentification dun client auprès dun KDC ou dun serveur. Cest la capacité à chiffrer correctement un authentifiant avec une clé de session qui prouve lauthenticité dun client.
-
-
-
-
 
 En simplifiant, un ticket est ainsi composé :
 
@@ -127,8 +85,6 @@ authorization-data : données dautorisation
 
 Un ticket fait donc référence à deux clés : la première est celle qui chiffre la partie chiffrée du ticket (enc-part) et la seconde est celle contenue dans la partie chiffrée du ticket (champ enc-part.key).
 
-
-
 Quant aux authentifiants, toujours en simplifiant, leur description est donnée ci-dessous. Il est important de noter que les authentifiants sont systématiquement intégralement chiffrés. Outre lauthentification, les authentifiants assurent la protection contre le rejeu des messages.
 
 Authenticator =
@@ -139,22 +95,12 @@ ctime : temps du client (pour lanti-rejeu)
 
 seq-number : numéro de séquence
 
-
-
-
-
 1.2 Échanges Kerberos
-
-
 Lauthentification dun client auprès dun serveur va sopérer en 3 échanges auprès de 3 services distincts :
 
 Authentication Service (AS) qui permet au client : de récupérer un ticket particulier, le TGT,
 
 de négocier une clé de session avec le KDC (SC,K) ;
-
-
-
-
 
 Ticket-Granting Service (TGS) qui permet au client : de sauthentifier auprès du KDC en lui transmettant un TGT et un authentifiant chiffré avec la clé de session (SC,K) quil partage avec le KDC,
 
@@ -162,17 +108,9 @@ de récupérer un ticket de service pour un service donné,
 
 de négocier une clé de session (SC,S) avec le service correspondant à celui demandé pour le ticket de service ;
 
-
-
-
-
 Client/Server Authentication (messages associés notés AP) qui permet au client : de sauthentifier auprès dun serveur en lui transmettant un ticket de service TS et un authentifiant chiffré avec la clé de session (SC,S) quil partage avec le service,
 
 optionnellement dauthentifier le serveur dans le cadre de lauthentification mutuelle.
-
-
-
-
 
 Chaque étape est composée dune requête REQ et dune réponse REP, ce qui fait 6 échanges pour réaliser une authentification complète :
 
@@ -182,38 +120,16 @@ KRB_TGS_REQ et KRB_TGS_REP ;
 
 KRB_AP_REQ et KRB_AP_REP.
 
-
-
-
-
 * * *
-
-
-
-
 
 FIGURE1: Synopsis dune authentification Kerberos
 
-
-
-
-
 * * *
-
-
 
 Les chapitres suivants illustrent ces 6 échanges dans le cas de lauthentification dun utilisateur (Administrateur) auprès dun service (cifs/serveur-01.demo.test) en environnement Active Directory. Les noms des structures et des champs sont ceux définis par la RFC. Dans tous les exemples de message, les champs préfixés par (*) sont marqués comme optionnels et ceux préfixés par () sont dans des parties chiffrées. Lintérêt de ces exemples, par rapport à une capture réseau classique, est de présenter les parties chiffrées.
 
-
-
-
-
 1.3 Message KRB_AS_REQ
-
-
 Un message KRB_AS_REQ (listing 1) permet à un client de demander un TGT à un serveur dauthentification (Authentication Service) dun KDC. Il sagit dun message générique KRB_KDC_REQ de demande de ticket.
-
-
 
 [AS-REQ]
 
@@ -271,11 +187,7 @@ supportés par le client
 
  addr-type: 20 (NetBios), address: WIN8
 
-
-
 LISTING 1. Message KRB_AS_REQ
-
-
 
 Il est à noter que :
 
@@ -287,44 +199,20 @@ dans le cas dune requête sur le service AS, le nom du service (sous la forme du
 
 sous Windows, ladresse émise par le client correspond au nom NetBios de sa machine.
 
-
-
-
-
 Les identifiants des algorithmes de chiffrement du champ etype sont décrits dans la partie 2.1.
-
-
 
 De base, un message KRB_AS_REQ permet de solliciter lobtention dun TGT et dune clé de session pour nimporte quel utilisateur sans aucune forme dauthentification préalable. Or, dans la réponse, la clé de session est chiffrée par celle de lutilisateur. Ceci peut permettre à un attaquant qui aurait écouté le trafic réseau de tenter des attaques hors ligne sur le mot de passe de lutilisateur.
 
-
-
 Afin déviter ce scénario, un KDC peut exiger du client quil prouve sa connaissance de la clé KC. Pour cela, le client doit inclure dans sa requête un bloc PA-DATA de type PA-ENC-TIMESTAMP. Ce bloc contient lheure du client chiffrée par sa clé KC. Le KDC valide ce bloc en vérifiant si la clé correspond bien à celle du client. Par ailleurs, la différence entre lheure chiffrée par le client (champ patimestamp) et celle du KDC ne doit pas excéder 5 minutes (cf. également partie 1.9).
-
-
 
 Évidemment, cette forme dauthentification nest pas suffisante et est vulnérable à un rejeu dans la période de tolérance des 5 minutes. On parle alors de préauthentification, permettant simplement de ne pas permettre à nimporte qui de demander un TGT arbitrairement, sans aucune connaissance préalable.
 
-
-
 Au niveau de lActive Directory, par défaut, tous les comptes doivent se préauthentifier. Ceci peut être désactivé pour un compte donné en positionnant loption ADS_UF_DONT_REQUIRE_PREAUTH sur lattribut userAccountControl [23] (ce qui correspond à loption « La pré-authentification Kerberos nest pas nécessaire » dans linterface graphique).
-
-
-
-
 
 1.4
 
-
-
-
-
 Message KRB_AS_REP
-
-
 Pour répondre au client, un message de type KRB_AS_REP (listing 2) est envoyé. Comme pour le cas précédent, il sagit dun message générique de type KRB_KDC_REP qui permet au client de récupérer son TGT (dont la partie chiffrée, par KKDC, contient SC,K) ainsi que SC,K dans la partie chiffrée par KC.
-
-
 
 [AS-REP]
 
@@ -412,15 +300,9 @@ sname: krbtgt/DEMO.TEST (2)
 
  0x18 addr-type: 20 (NetBios), address: WIN8
 
-
-
 LISTING 2. Message KRB_AS_REP
 
-
-
 Si le compte qui sollicite un ticket supporte le chiffrement au moyen de clés nécessitant une graine (salt), celle-ci est envoyée au client via une séquence dun ou plusieurs blocs PA-PW-SALT (pour les clés de type DES) ou PA-ETYPE-INFO2 (pour les clés de type AES, ce bloc permettant également denvoyer le nombre ditérations). Ces mêmes blocs sont également envoyés au client en cas derreur (absence ou erreur de préauthentification, utilisation dalgorithme de chiffrement non géré, etc.) dans des messages de type KRB_ERROR (cf. partie 2.4).
-
-
 
 Hormis le nom du serveur associé au ticket (sname et realm), tous les autres champs du ticket sont inaccessibles au client car chiffrés par KKDC. Afin de permettre au client dobtenir de manière sécurisée les informations nécessaires, la partie chiffrée de la réponse (enc-part chiffrée par la clé KC, et donc accessible au client) duplique de nombreux champs du ticket, en particulier :
 
@@ -428,21 +310,11 @@ la clé de session SC,K partagée avec le KDC ;
 
 les champs flags, authtime, starttime, endtime, renew-till et caddr.
 
-
-
 Certains de ces champs sont par ailleurs repris du message KRB_AS_REQ afin de sassurer quils nont pas été modifiés (nonce, caddr, etc.).
-
-
 
 Après ces deux échanges, le client dispose dun TGT et dune clé de session SC,K quil conserve dans les données de sa session dauthentification (cf. partie 2.4). Quant au KDC, il ne conserve aucune information : la clé de session SC,K sera retrouvée dans le TGT que devra lui présenter le client par la suite.
 
-
-
-
-
 1.5 Message KRB_TGS_REQ
-
-
 Un message KRB_TGS_REQ (listing 3) est identique, dans sa forme, à un message KRB_AS_REQ vu précédemment. Il sagit dun message de demande de ticket de type KRB_KDC_REQ avec cependant quelques différences notables :
 
 ce nest pas un TGT qui est demandé (avec le SPN spécifique krbtgt/REALM), mais un ticket de service dont le client spécifie le nom de linstance sous la forme service/serveur (par exemple : cifs/serveur.domaine.demo) ;
@@ -452,10 +324,6 @@ le ticket est demandé au service TGS du KDC qui impose lauthentification du dem
 dauthentifier auprès du KDC le client en prouvant que celui-ci connaît la clé de session SC,K associée au TGT,
 
 dassurer lanti-rejeu de la demande.
-
-
-
-
 
 [TGS-REQ]
 
@@ -549,22 +417,10 @@ supportés par le client
 
 *enc-authorization-data: cf. partie 2.5
 
-
-
-
-
 LISTING 3. Message KRB_TGS_REQ
 
-
-
-
-
 1.6 Message KRB_TGS_REP
-
-
 Là encore, un message KRB_TGS_REP (listing 4) est identique, dans sa forme, à un message KRB_AS_REP (message de type KRB_KDC_REP) et vise à transmettre au client un ticket de service ainsi que la clé de session SC,S associée.
-
-
 
 [TGS-REP]
 
@@ -638,28 +494,12 @@ srealm: DEMO.TEST
 
 sname: cifs/dc-2012-01.demo.test (2)
 
-
-
-
-
 LISTING 4. Message KRB_TGS_REP
-
-
-
-
 
 1.7
 
-
-
-
-
 Message KRB_AP_REQ
-
-
 Un message KRB_AP_REQ (listing 5) permet à un client de sauthentifier auprès du TGS dun KDC (comme ci-dessus) ou de tout autre service acceptant Kerberos comme protocole dauthentification. Préalablement à tout message KRB_AP_REQ, le client doit être en possession dun ticket (TGT ou de service) et de la clé de session associée. Cest en prouvant au serveur quil connaît cette clé de session que le client prouve son identité.
-
-
 
 Un message KRB_AP_REQ assure trois finalités :
 
@@ -668,10 +508,6 @@ transférer le ticket du client au service. Celui-ci étant chiffré par la clé
 permettre au client de sauthentifier auprès du service. Pour cela, le client doit prouver quil connaît la clé de session contenue dans le ticket. Cette preuve est apportée en chiffrant lauthentifiant contenu dans le champ authenticator de la requête ;
 
 se protéger contre le rejeu.
-
-
-
-
 
 [AP-REQ]
 
@@ -729,36 +565,18 @@ Clé de session C->S supplémentaire
 
 *authorization-data: Données dautorisation, cf. partie 2.5
 
-
-
-
-
 LISTING 5. Message KRB_AP_REQ
-
-
 
 Le client, en spécifiant loption mutual-required dans le champ ap-options, peut demander lauthentification mutuelle. Dans ce cas, le serveur doit également sauthentifier auprès du client en prouvant quil connaît KS. Ceci est réalisé par lenvoi, du serveur au client, dun message KRB_AP_REP.
 
-
-
 Lauthentification mutuelle est un apport non négligeable par rapport à de nombreux protocoles dauthentification, en particulier NTLM. Cependant, la demande dauthentification mutuelle doit être explicitement formulée par le client (via loption ISC_REQ_MUTUAL_AUTH de la fonction InitializeSecurityContext) et vérifiée.
 
-
-
-
-
 1.8 Message KRB_AP_REP
-
-
 Un message de type KRB_AP_REP (listing 6) permet à un serveur de sauthentifier auprès dun client en prouvant quil connaît KS. Cette preuve se réalise par deux opérations :
 
 le serveur récupère, dans la partie chiffrée par KS du ticket de service présenté par le client, la clé SC,S ;
 
 le serveur chiffre le message KRB_AP_REP avec la clé de session SC,S.
-
-
-
-
 
 [AP-REP]
 
@@ -778,52 +596,24 @@ Clé de session S<->C supplémentaire
 
 *seq-number: 0x61c8098c
 
-
-
-
-
 LISTING 6. Message KRB_AP_REP
-
-
 
 Si le client déchiffre correctement la partie chiffrée (enc-part) et que lheure ne sécarte pas de plus de 5 minutes par rapport à sa propre heure, il est assuré que le serveur connaît SC,S et donc KS. Il est également possible de négocier une nouvelle clé de session qui servira dans les extensions de chiffrement et dauthentification (fonctions MakeSignature, EncryptMessage, etc.).
 
-
-
-
-
 1.9
 
-
-
-
-
 Protections contre le rejeu
-
-
 Il est important que les messages Kerberos soient protégés contre le rejeu et tout particulièrement les messages KRB_AP_REP. Si tel nétait pas le cas, il suffirait à un attaquant de capturer sur le réseau une authentification présentée par un client auprès dun service puis de la rejouer sur ce même service.
-
-
 
 Pour se prémunir contre ce type dattaques, plusieurs mécanismes sont mis en oeuvre.
 
-
-
 Le premier mécanisme, macroscopique, consiste à horodater toutes les demandes des clients. Ainsi, le client doit chiffrer son heure actuelle (date, heure, minute, seconde et microseconde) et lenvoyer au serveur (champ patimestamp du bloc PA-ENC-TIMESTAMP ou champ ctime de lauthentifiant). Le serveur accepte les demandes uniquement si lheure du client et la sienne ne différent pas de plus de 5 minutes3 . Si la différence est supérieure, une dérive de temps (clock skew) est détectée et les requêtes sont rejetées (KRB_AP_ERR_SKEW). Ce mécanisme impose la synchronisation des heures des systèmes de tous les acteurs prenant part à lauthentification Kerberos.
-
-
 
 Le deuxième mécanisme, microscopique, est la mise en place dun cache des authentifiants reçus. Ainsi, sous Windows, lempreinte MD5 de tous les authentifiants reçus par un message KRB_AP_REP est calculée et mise dans ce cache. Lunicité des empreintes est assurée par les numéros de séquence des authentifiants (champ seq-number) qui doivent toujours être différents. Avant de traiter un authentifiant, le système regarde si son empreinte nest pas déjà présente dans ce cas. Si tel est le cas, le message KRB_AP_REP est rejeté (KRB_AP_ERR_REPEAT).
 
-
-
 Le troisième mécanisme concerne les tickets (TGT ou tickets de service). Afin déviter quun attaquant, ayant dérobé (cf. partie 2.4) un ticket et la clé associée, puisse les réutiliser depuis une autre machine, le KDC peut spécifier ladresse du client dans la partie chiffrée du ticket (champ caddr). Ainsi, si un attaquant tente dutiliser un tel ticket depuis une autre machine (dont ladresse est supposée être différente de celle contenue dans le ticket), le ticket et donc la demande sont rejetés.
 
-
-
 Cependant, lier les tickets Kerberos à ladresse IP des machines nest pas sans poser de difficultés, en particulier dans les environnements où la traduction dadresse (NAT) ou ladressage dynamique (DHCP) sont mis en uvre. En effet, le changement de ladresse IP de la machine dun client invaliderait tous ses tickets. Ainsi, dans une configuration par défaut, les contrôleurs de domaine nincluent pas ladresse IP du client dans les tickets quils émettent.
-
-
 
 Il est possible de modifier ces comportements par défaut, via la base de registre [11], pour demander :
 
@@ -831,96 +621,38 @@ aux clients dinclure leur adresse IP dans leur requête de ticket (ClientIpAddre
 
 aux KDC dinclure ladresse IP aux TGT (KdcUseClientAddresses) et de vérifier les adresses dans les demandes de tickets qui leur sont adressées (KdcDontCheckAddresses).
 
-
-
-
-
 2
-
-
-
-
 
 Adaptation à lenvironnement Active Directory
 
-
-
-
-
 2.1
 
-
-
-
-
 Algorithmes
-
-
 Comme vu précédemment, chaque acteur dispose dun ensemble de clés partagées avec le KDC. Toutes ces clés sont dérivées du mot de passe de lacteur via des fonctions de type string-to-key. Les mots de passe peuvent être choisis, ce qui est généralement le cas pour les comptes utilisateur (par exemple KC), ou générés automatiquement dans le cas des comptes de service ou des comptes machine (par exemple KKDC et KS).
-
-
 
 Une clé est définie par son type, sa valeur et son numéro de version. Le type indique lalgorithme de dérivation du mot de passe. Initialement, la première norme de Kerberos (RFC 1510) spécifiait qua minima des clés de chiffrement de type DES devaient être supportées par chaque acteur (pour les algorithmes des-cbc-crc, des-cbc-md4 et des-cbc-md5).
 
-
-
 Lors de la conception de lActive Directory à la fin des années 90, Microsoft ne pouvait utiliser uniquement DES pour le chiffrement. En effet, dans les bases de comptes SAM des domaines Windows NT, les empreintes des mots de passe, au format NTLM qui repose sur MD4, étaient calculées différemment et ne pouvaient servir de clé de type DES.
-
-
 
 Microsoft a donc choisi, dans Windows 2000, dintroduire dautres algorithmes basés sur RC4 pour le chiffrement et utilisant les empreintes NTLM (RFC 4757). Ceci permettait de disposer, lors dune migration dune base SAM dun domaine Windows NT en annuaire Active Directory, de clés Kerberos en réutilisant les empreintes NTLM existantes. Par la suite, lorsque les mots de passe étaient changés, les clés DES étaient calculées afin de permettre lutilisation des algorithmes utilisant ce type de clé.
 
-
-
 Plus récemment, de nouveaux algorithmes jugés plus sûrs ont été adoptés tels que la dérivation de mots de passe basée sur SHA-1 et PBKDF2 (avec itérations multiples) ou lalgorithme de chiffrement AES (RFC 3962). Ces nouveaux standards sont supportés depuis Windows Vista et Windows Server 2008.
-
-
 
 Le tableau 1 recense les principaux algorithmes mis en oeuvre dans les environnements Active Directory. Si les précédentes normes de Kerberos laissaient une certaine imprécision, la RFC 4120 précise bien que lidentifiant dun type de clé spécifie également lalgorithme de chiffrement associé. On peut remarquer que beaucoup dalgorithmes reposent encore sur lempreinte NTLM bien que cette forme dempreinte ne mette pas en oeuvre lutilisation de graine ou ditérations dans sa dérivation depuis un mot de passe.
 
-
-
-
-
 * * *
-
-
 
 TABLE 1: Liste des types de clés et des algorithmes de chiffrement
 
-
-
-
+* * *
 
 * * *
 
-
-
-
+* * *
 
 * * *
 
-
-
-
-
 * * *
-
-
-
-
-
-* * *
-
-
-
-
-
-* * *
-
-
-
-
 
 Type
 
@@ -932,39 +664,15 @@ Graine
 
 Norme
 
-
-
-
+* * *
 
 * * *
 
-
-
-
+* * *
 
 * * *
 
-
-
-
-
 * * *
-
-
-
-
-
-* * *
-
-
-
-
-
-* * *
-
-
-
-
 
 0x1 des-cbc-crc N/A OUI RFC 3961
 
@@ -984,87 +692,35 @@ Norme
 
 0xffffff80 rc4-md4 N/A N/A RFC 4757 (empreinte NTLM)
 
-
+* * *
 
 * * *
 
-
-
-
+* * *
 
 * * *
 
-
-
-
-
 * * *
 
-
-
-
-
 * * *
-
-
-
-
-
-* * *
-
-
-
-
-
-* * *
-
-
-
-
 
 Le nombre ditérations indique celui par défaut. Quant à la graine, elle est toujours, par défaut, la concaténation du nom du domaine et du nom du compte.
 
-
-
-
-
 2.2 Clés des KDC
-
-
 Pour stocker les clés KKDC, lActive Directory utilise un compte dun utilisateur dénommé krbtgt. Il sagit dun simple compte, désactivé, sans droit (au sens permission dans lActive Directory) ni privilège système particulier.
-
-
 
 Si plusieurs contrôleurs de domaine sont utilisés, la réplication de lannuaire assure que chaque contrôleur dispose de clés KKDC partagées (cest-à-dire identiques). Ceci est indispensable pour sassurer que nimporte quel contrôleur de domaine puisse jouer le rôle de KDC et quun TGT demandé sur un contrôleur puisse être présenté et déchiffré par un autre contrôleur.
 
-
-
 Enfin, lorsque des contrôleurs de domaine en lecture seule (RODC pour Read-Only Domain Controller) sont mis en oeuvre, chacun dispose dune clé KKDC propre et associée au compte krbtgt_<RodcID>.
-
-
-
-
 
 2.3
 
-
-
-
-
 Stockage des clés dans lAD
-
-
 Pour chaque compte (utilisateur, machine ou krbtgt), plusieurs attributs de lannuaire Active Directory sont employés pour stocker les empreintes des mots de passe ou des clés Kerberos.
-
-
 
 Les empreintes LM4 et NTLM sont stockées respectivement dans les attributs dBCSPwd et unicodePwd et leur historique réciproque dans les attributs lmPwdHistory et ntPwdHistory. Comme vu dans la partie 2.1, plusieurs types de clés Kerberos et dalgorithmes de chiffrement reposent sur lempreinte NTLM (rc4-hmac, rc4-hmac-old, etc.).
 
-
-
 Pour le stockage des clés aux formats historiques basées sur DES, le champ supplementalCredentials est utilisé [20]. Ce champ est une structure binaire pouvant contenir diverses formes de stockage du mot de passe (baptisés packages) allant du mot de passe en clair (si activé) aux formes dempreintes utilisées par Kerberos.
-
-
 
 Le package Primary:Kerberos contient ainsi une structure KERB_STORED_CREDENTIAL qui contient, à son tour, les formes DES des clés (champ Credentials) et dautres informations telles que :
 
@@ -1074,10 +730,6 @@ les clés de type des-cbc-md5 et des-cbc-crc calculées à partir du mot de pass
 
 les mêmes types de clés, mais calculées avec le précédent mot de passe (champ OldCredentials).
 
-
-
-
-
 Avec Windows 2008, et le support des nouveaux algorithmes, un nouveau package est apparu : Primary:Kerberos-Newer-Keys. Celui-ci contient une structure KERB_STORED_CREDENTIAL_NEW qui permet, par rapport à la structure précédente :
 
 de stocker les formes des clés aes128-cts-hmac-sha1-96 et aes256-cts-hmac-sha1-96 ;
@@ -1086,21 +738,11 @@ de stocker le nombre ditérations utilisées dans le calcul des clés, ce qui pe
 
 de stocker les clés correspondant au mot de passe courant de lutilisateur (champ Credentials), ainsi que celles calculées à partir du mot de passe précédent (champ OldCredentials) et de celui davant (champ OlderCredentials).
 
-
-
-
-
 Enfin, à chaque clé Kerberos est associé un numéro de version qui permet, en cas de changement de mot de passe, de pouvoir déterminer la clé ayant été utilisée pour chiffrer les données. Au niveau des échanges Kerberos, chaque partie chiffrée (structure de type EncryptedData) spécifie donc le type dalgorithme (champ etype) et le numéro de clé (champ kvno). LActive Directory utilise quant à lui lattribut msDS-KeyVersionNumber pour y stocker cette information5 . Celui-ci contient un compteur qui est incrémenté à chaque changement de mot de passe du compte associé.
-
-
 
 Si le mode de fonctionnement avec lutilisation des numéros de version est celui de lesprit de la RFC, il en est tout autrement dans les systèmes Windows et lActive Directory. En effet, comme décrit dans [29], dans ces environnements, le champ kvno est tout simplement ignoré6 par les clients et les KDC. Ceux-ci conservant systématiquement les clés correspondant aux mots de passe courant et précédent, le processus de sélection des clés de déchiffrement est différent. Une tentative de déchiffrement du bloc chiffré à laide des clés associées au mot de passe courant est dabord réalisée. Si cela échoue, ce sont les clés correspondant au mot de passe précédent qui sont essayées. Cest seulement si les deux tentatives échouent que le mot de passe est considéré comme invalide.
 
-
-
 Il est important de rappeler que tous les attributs utilisés pour stocker des empreintes ou des clés (unicodePwd, supplementalCredentials) sont de type SecretAttribute [8] et ne peuvent, à ce titre, jamais être extraits, par exemple par des requêtes LDAP.
-
-
 
 Au niveau des comptes de lActive Directory :
 
@@ -1109,10 +751,6 @@ les comptes utilisateur contiennent les clés des utilisateurs ;
 les comptes machine contiennent les clés des serveurs (ce qui correspond également aux services qui tournent sous lidentité LocalSystem et NetworkService) ;
 
 le compte krbtgt contient la clé KKDC.
-
-
-
-
 
 Par exemple, pour un compte baptisé « SSTIC », un extrait des informations conservées par lActive Directory est donné dans le listing 7. Il faut rappeler que, pour des raisons de compatibilité, lempreinte NTLM na pas de graine contrairement à toutes les autres clés Kerberos (des-cbc-md5, aes256-cts-hmac-sha1-96, etc.) qui, elles, sont calculées avec une graine qui dépend, par défaut, du nom du domaine et du compte.
 
@@ -1256,46 +894,18 @@ KERB_STORED_CREDENTIAL.OldCredentialCount: 1
 
 [3] USER_PROPERTY.PropertyName: "Primary:WDigest"
 
-
-
-
-
 LISTING 7. Données dauthentification associées à un compte utilisateur
-
-
-
-
 
 2.4
 
-
-
-
-
 Stockage de secrets dans les sessions dauthentification
-
-
 Pour chaque utilisateur qui sauthentifie auprès dun système, et ce quelle que soit la forme (interactivement, par le réseau, etc.), une session dauthentification est créée et contient diverses informations de contexte [22] (identifiant local unique de la session, nom de lutilisateur, heure de connexion, etc.). En outre, les SSP7 assurent la conservation de secrets dauthentification pour chaque session. Ceux-ci permettent, entre autres, de mettre en oeuvre lauthentification implicite, cest-à-dire la possibilité pour les utilisateurs de sauthentifier à distance sans avoir à ressaisir leur mot de passe.
 
-
-
-
-
 * * *
-
-
-
-
 
 FIGURE2: Données dune session dauthentification Kerberos
 
-
-
-
-
 * * *
-
-
 
 Pour chaque session dauthentification, le SSP Kerberos sauvegarde, dans la mémoire du processus LSASS, des informations liées à lauthentification Kerberos (voir figure 2). Parmi celles-ci, on peut citer :
 
@@ -1305,52 +915,24 @@ les clés dérivées depuis le mot de passe () : ces clés sont initialement cal
 
 optionnellement, le mot de passe de lutilisateur () : celui-ci est conservé en clair8 jusquà réception dun TGT.
 
-
-
-
-
 La conservation en mémoire du mot de passe est nécessaire car, initialement, le client lutilise pour calculer les clés avec les valeurs par défaut de la graine et du nombre ditérations. Avant deffacer le mot de passe, le client doit sassurer que les valeurs utilisées correspondent à celles utilisées par le KDC, ce dernier ayant la possibilité dutiliser une autre graine ou un nombre ditérations différent. Dans les messages KRB_AS_REP (cf. partie 1.4), le KDC transmet au client la graine utilisée et le nombre ditérations pour chaque type de clé via les structures PA-PW-SALT ou PA-ETYPE-INFO2. De même, si la préauthentification échoue, un message KRB_ERROR est envoyé du KDC au client avec ces mêmes structures. En cas de différences, le client peut alors recalculer les clés avec les bonnes valeurs. Lorsque le client est assuré que les clés sont correctement générées et fonctionnelles, le mot de passe est alors effacé.
-
-
 
 Il est souvent reproché à Microsoft de conserver en mémoire des secrets liés aux mots de passe des utilisateurs authentifiés sur un système (empreinte NTLM, clés Kerberos, tickets Kerberos voire le mot de passe de lutilisateur ou son code PIN). Ceci est rendu nécessaire pour les besoins du SSO9 qui permet aux utilisateurs de sauthentifier sur le réseau sans devoir saisir à nouveau leur mot de passe. Il ne faut pas oublier que toutes les informations sensibles mises en cache le sont dans lespace mémoire du processus LSASS et ne sont accessibles quà un attaquant ayant obtenu un haut niveau de privilège (cest-à-dire administrateur local) sur un système.
 
-
-
 Un effort de sécurisation doit toujours être réalisé pour éviter quun attaquant obtienne un haut niveau de privilège sur les postes de travail, dadministration ou sur les serveurs. Même si aucune information nétait mise en cache, un attaquant étant administrateur dun système aurait dautres possibilités pour récupérer le mot de passe de lutilisateur (installation dun keylogger, ajout de faux Credential Providers ou de faux SSP, etc.). Cependant, Microsoft a récemment mis en place des protections visant à limiter, plus ou moins, les possibilités dattaques (protected users group, protected processes, etc.). Ces protections sont détaillées dans la partie 11.
-
-
-
-
 
 2.5
 
-
-
-
-
 Autorisation
-
-
 Kerberos, en tant que protocole dauthentification, nest pas suffisant. En effet, le modèle du contrôle daccès de Windows nécessite des informations supplémentaires relatives à lUPN10 dun utilisateur authentifié.
-
-
 
 Pour les systèmes Windows, lautorisation est mise en oeuvre par des mécanismes complexes, basés sur les jetons daccès (access token), qui décrivent les contextes de sécurité des utilisateurs ainsi que les descripteurs de sécurité qui définissent les droits daccès. Ces structures utilisent des SID (Security Identifiers) pour désigner des utilisateurs, groupes ou entités de sécurité.
 
-
-
 Après lauthentification dun client, un serveur doit générer un jeton daccès afin de décrire le contexte de sécurité de celui-ci. Pour créer ce jeton, le serveur doit disposer, entre autres, de lidentifiant de sécurité de lutilisateur et des identifiants de ses groupes dappartenance. Or ce sont les KDC (cest-à-dire les contrôleurs de domaine) qui disposent de ces informations.
-
-
 
 Microsoft a donc défini une extension à Kerberos baptisée PAC (Privilege Attribute Certificate) qui permet aux contrôleurs de domaine de transmettre aux serveurs les informations nécessaires à létablissement du contexte de sécurité du client et la génération de son jeton daccès.
 
-
-
 Pour ne pas modifier en profondeur le protocole Kerberos, Microsoft utilise le champ authorization-data des tickets. Ce champ est défini dans la norme Kerberos, mais son contenu est laissé à libre disposition pour le transfert de données dautorisation.
-
-
 
 Ainsi, lors de la demande dun TGT par un client (traitement dun message KRB_AS_REQ), le contrôleur de domaine initialise une structure KERB_VALIDATION_INFO et la remplit avec les informations dautorisation relatives au client initiant la demande. Cette structure est définie dans [15] et les critères de remplissage des champs dans [12]. Un extrait de cette structure (qui compte plus de 35 champs) est donné ci-dessous :
 
@@ -1400,8 +982,6 @@ ULONG SidCount;
 
 Cette structure est directement dérivée de la structure NETLOGON_VALIDATION_SAM_INFO4 [14] utilisée dans le protocole NETLOGON à des fins similaires (transfert du contexte de sécurité dun utilisateur dun contrôleur de domaine à un système validant une authentification dun utilisateur).
 
-
-
 Chaque nom de champ est plutôt explicite et décrit correctement le rôle associé, mais quelques précisions importantes peuvent être apportées :
 
 LogonDomainId contient le SID du domaine ;
@@ -1412,10 +992,6 @@ GroupIds contient les RID des groupes du domaine auxquels GroupIds appartient. L
 
 ExtraSids contient les SID devant être ajoutés aux jetons des utilisateurs. Ceci est utilisé en particulier dans le mécanisme des sIDHistory.
 
-
-
-
-
 Cette structure doit ensuite être doublement signée11 :
 
 par la clé des KDC (KKDC) : cette signature12 est appelée la KDC Signature et est stockée dans une structure PAC_SIGNATURE_DATA ;
@@ -1424,13 +1000,7 @@ par la clé du service destinataire du ticket : cette signature est appelée la 
 
 KS dans le cas des tickets de service (le SPN étant typiquement service/serveur@REALM).
 
-
-
-
-
 Toutes les structures sont encapsulées dans des structures de type AD-WIN2K-PAC et AD-IF-RELEVANT puis mises dans le champ authorization-data du ticket (figure 3, étape ). Ce champ étant dans la partie chiffrée (enc-part), la PAC est ainsi chiffrée par la clé du service destinataire. Le listing 8 montre un exemple de ces structures dans un ticket.
-
-
 
 Après leur réception, les TGT sont conservés en mémoire par les clients (cf. partie 2.4). Lors de la demande dun ticket de service (via un message KRB_TGS_REQ), le KDC ne régénère pas une nouvelle PAC : celle-ci est recopiée depuis le TGT (figure 3, étape ). Le processus de génération est le suivant :
 
@@ -1446,15 +1016,7 @@ les deux signatures de la PAC sont générées : KDC Signature est signée à no
 
 Server Signature est signée cette fois-ci par KS ;
 
-
-
-
-
 le ticket est chiffré avec la clé KS du serveur destinataire.
-
-
-
-
 
 [Ticket]
 
@@ -1538,11 +1100,7 @@ SignatureType: 0xffffff76 (KERB_CHECKSUM_HMAC_MD5)
 
 Signature: 4525b9b08bef831a960e04b4819e6c9f
 
-
-
 LISTING 8. Structures liées à la PAC dans un ticket (extrait)
-
-
 
 Quand un client présente un ticket de service (via un message KRB_AP_REQ), le serveur récupère la PAC dans la partie chiffrée du ticket et, après vérification des signatures, génère un jeton de sécurité qui représente le contexte de sécurité du client (figure 3, étape ). Ce jeton servira alors dans le contrôle daccès en particulier lorsque le client sera impersonifié13 . Pour cela :
 
@@ -1552,79 +1110,35 @@ les SID de groupes sont construits à partir des champs LogonDomainId et GroupId
 
 tous les SID de la liste ExtraSids de la PAC sont ajoutés à la liste UserAndGroups du jeton.
 
-
-
-
-
 Il est important de noter que le serveur, au sein dun même domaine, fait une confiance absolue à la PAC générée par le KDC et contenue dans le ticket présenté.
 
-
-
-
-
 * * *
-
-
-
-
 
 FIGURE3: Synopsis de traitement dune PAC
 
-
-
-
-
 * * *
-
-
-
-
 
 3
 
-
-
-
-
 PKINIT
-
-
 Dans sa version de base, Kerberos repose uniquement sur des algorithmes symétriques. Lutilisateur utilise des clés de chiffrement symétrique dérivées directement à partir de son mot de passe pour sauthentifier. Afin de permettre dautres formes dauthentification, Microsoft a, dès Windows 2000, proposé une extension baptisée PKINIT. Celle-ci, standardisée depuis dans la RFC 4556, permet principalement la mise en oeuvre de deux fonctionnalités :
 
 lutilisation dalgorithmes asymétriques et de certificats X.509 pour lauthentification des utilisateurs ;
 
 lutilisation dalgorithmes asymétriques ou de Diffie-Hellman pour léchange ou la génération des clés de session.
 
-
-
 Cette extension vise principalement à permettre lutilisation de cartes à puce ou de jeton de sécurité matériel pour lauthentification des utilisateurs.
-
-
 
 Les seuls changements par rapport à une authentification classique reposant sur un mot de passe et des clés symétriques concernent les échanges KRB_AS_REQ et KRB_AS_REP permettant à lutilisateur dobtenir un TGT et la clé de session associée. Une fois ce TGT obtenu, tous les autres échanges Kerberos sont identiques.
 
-
-
-
-
 3.1 Échanges KRB_AS_REQ
-
-
 Au niveau du message KRB_AS_REQ (listing 9), le client va indiquer le support de PKINIT et son souhait de sauthentifier via certificat en ajoutant un bloc de type PA_PK_AS_REQ dans la partie preauthentication data (padata) du message KRB_AS_REQ. Ce bloc contient, entre autres :
 
 un bloc signedAuthPack contenant le certificat du client, les certificats des autorités intermédiaires de la chaîne de certification (mais pas le certificat racine) ainsi quun bloc AuthPack signé avec la clé privée associée au certificat du client. Ce bloc contient : un bloc de préauthentification (pkAuthenticator) contenant lheure du client et un aléa (nonce),
 
 optionnellement, la partie cliente de léchange Diffie-Hellman ;
 
-
-
-
-
 optionnellement, un bloc trustedCertifiers contenant les certificats X.509 reconnus par le client pour authentifier le KDC.
-
-
-
-
 
 [AS-REQ]
 
@@ -1666,45 +1180,21 @@ kdc-options: 0x40810010 (enc_pa_rep, renewable, forwardable)
 
 ...
 
-
-
 LISTING 9. Message KRB_AS_REQ avec extension PKINIT
 
-
-
-
-
 3.2 Validation par lActive Directory
-
-
 En traitant le bloc signedAuthPack émis par le client, le KDC récupère le certificat de lutilisateur quil doit ensuite associer à un compte de lActive Directory. Pour les utilisateurs, de manière générale, le champ Subject Alternative Name du certificat doit correspondre à lUPN dun utilisateur dans lannuaire, soit sous forme implicite (samAccountName@domain_FQDN), soit sous forme explicite (attribut userPrincipalName de lobjet utilisateur). Le processus complet dassociation et ses subtilités est décrit dans la documentation de PKINIT [19].
-
-
 
 En outre, le certificat utilisateur doit être signé par un certificat dautorité (racine ou intermédiaire) autorisé pour lauthentification par carte à puce. Pour cela, le certificat de lautorité doit être préalablement ajouté à lattribut cACertificate du conteneur NTAuthCertificates14 .
 
-
-
-
-
 3.3 Échanges KRB_AS_REP
-
-
 Dans le cadre dune authentification PKINIT, les messages de réponse du KDC (KRB_AS_REP, listing 10) sont également étendus afin dajouter un bloc PA-PK-AS-REP dans la partie preauthentication data (padata) du message. Ce bloc contient, au choix :
 
 un bloc dhInfo contenant la partie serveur de léchange Diffie-Hellman signée par la clé privée associée au certificat du KDC (afin dauthentifier léchange) ;
 
 un bloc encKeyPack contenant la clé de session générée par le KDC et chiffrée par la clé publique du certificat de lutilisateur.
 
-
-
-
-
 Dans les deux cas, le client récupère une clé qui permet le déchiffrement de la partie chiffrée de la réponse KRB_AS_REP. Pour rappel, dans cette partie, le champ EncryptionKey contient la clé de session SC,K associée au TGT. La récupération de cette clé et la possession du TGT prouveront, pour la suite, lauthenticité du client.
-
-
-
-
 
 [AS-REP]
 
@@ -1762,28 +1252,14 @@ Clé de session SC,K transmise au client
 
 ...
 
-
-
 LISTING 10. Message KRB_AS_REP avec extension PKINIT
-
-
 
 À partir de cet instant, la suite du processus dauthentification est identique à une authentification Kerberos classique : au moyen du TGT, le client peut demander des tickets de service afin de sauthentifier auprès de serveurs ou services.
 
-
-
-
-
 3.4 Le retour de NTLMSSP
-
-
 Microsoft utilise également PKINIT pour une fonctionnalité supplémentaire propre aux environnements Windows. De base, PKINIT permet aux utilisateurs de sauthentifier via un protocole asymétrique lors de la demande dun TGT. Celui-ci permet ensuite dobtenir des tickets de service et de sauthentifier, toujours via Kerberos, auprès de serveurs ou de services. Dans cette configuration, lutilisateur nayant pas saisi son mot de passe (quil peut ne pas connaître), le SSP msv1_015 ne peut générer les empreintes LM et NTLM de lutilisateur. Celles-ci ne sont donc pas présentes dans sa session dauthentification ce qui rend impossible lauthentification implicite via les protocoles NTLM.
 
-
-
 Or les contrôleurs de domaine conservent, dans lActive Directory, les empreintes NTLM des utilisateurs. Celles-ci peuvent correspondre à celles dun mot de passe choisi par lutilisateur ou dun mot de passe généré automatiquement si lauthentification par carte à puce est forcée (cf. partie 4.2). Ainsi, pour que lutilisateur puisse également sauthentifier en NTLM, PKINIT permet aux contrôleurs de domaine de transférer les empreintes NTLM aux clients lorsque ceux-ci sauthentifient avec les extensions PKINIT.
-
-
 
 Le listing 11 détaille une structure PAC_CREDENTIAL_INFO dans un message KRB_AS_REP.
 
@@ -1843,67 +1319,29 @@ LmPassword: 00000000000000000000000000000000
 
 NtPassword: 95771430787a7b69eacad46660d7ff06
 
-
-
 LISTING 11. Structure PAC_CREDENTIAL_INFO
-
-
-
-
 
 4
 
-
-
-
-
 Mythes autour de Kerberos
 
-
-
-
-
 4.1 Protection contre les attaques de type Pass-the-hash
-
-
 Les attaques de type Pass-the-hash consistent à sauthentifier, non pas à laide du mot de passe dun utilisateur, mais uniquement au moyen de lempreinte de son mot de passe. De manière générale, les protocoles dauthentification à distance basés sur des empreintes sans graine sont vulnérables à ce type dattaque, ce qui est le cas du protocole NTLM et de toutes ses variantes (LM, NTLMv2, etc.).
-
-
 
 Si un attaquant récupère une base de comptes (une base SAM ou une base dun Active Directory), il peut alors sauthentifier à distance avec les empreintes sans avoir à retrouver les mots de passe en clair.
 
-
-
 Kerberos souffre de la même problématique : si un attaquant arrive à extraire les clés Kerberos (cf. partie 2.4), il est alors en mesure de demander un TGT sans connaître le mot de passe associé. En effet, pour chiffrer le bloc de préauthentification (PA-ENC-TIMESTAMP) ou pour déchiffrer la clé de session associée au TGT, seule la clé KC du client (connue de celui-ci et également stockée dans lActive Directory16 ) est nécessaire.
-
-
 
 Sous Windows, ce type dattaque peut aisément être mis en oeuvre en remplaçant, dans la mémoire de LSASS, les clés Kerberos dune session dauthentification donnée. Après substitution des clés et effacement de tous les tickets du cache (klist purge), toute demande dauthentification implicite basée sur Kerberos déclenchera automatiquement une demande de TGT en utilisant les nouvelles clés injectées. On peut alors parler dattaque de type Pass-the-keys.
 
-
-
 Il ne sagit cependant pas dune vulnérabilité, mais du mode de fonctionnement inhérent à Kerberos et qui touche tous les systèmes (Windows et lActive Directory nétant pas les seuls concernés). Ainsi, dans toute architecture qui met en oeuvre Kerberos, la protection des bases des clés des KDC doit être une priorité absolue.
-
-
-
-
 
 4.2
 
-
-
-
-
 Utilisation des cartes à puce
-
-
 Lutilisation des cartes à puce est souvent présentée comme une solution à de nombreux problèmes liés à lauthentification. Or, comme décrit dans la partie 3, lauthentification par carte à puce apporte uniquement, dans le contexte de Kerberos, une nouvelle méthode de préauthentification et de récupération de la clé de session pour un utilisateur lors de la demande de son TGT.
 
-
-
 Une option intéressante consiste à « forcer » lutilisation de la carte à puce en sélectionnant loption « Une carte à puce est nécessaire pour ouvrir une session interactive » dans les propriétés dun compte utilisateur. Cela revient à positionner loption ADS_UF_SMARTCARD_REQUIRED de lattribut userAccountControl [23] sur le compte.
-
-
 
 Lorsque cette option est activée, le comportement des composants dauthentification est ainsi modifié :
 
@@ -1911,42 +1349,18 @@ le SSP msv1_0 interdit toutes les formes dauthentification, exceptées celles du
 
 le SSP Kerberos délivre des TGT via le service AS uniquement si une extension PKINIT (cf. partie 3) est présente dans la requête de lutilisateur. Les autres services (TGS et AP) ne sont pas affectés.
 
-
-
-
-
 Loption ADS_UF_SMARTCARD_REQUIRED impose donc à un utilisateur de sauthentifier interactivement via un dispositif prenant en charge PKINIT et Kerberos. Concernant les authentifications réseau, si le protocole NTLM est toujours activé, les attaques de type Pass-the-hash sont encore possibles via NTLM. En revanche, si NTLM est désactivé [16], un attaquant qui aurait récupéré les secrets dun utilisateur (empreinte NTLM ou clés Kerberos) ne pourra pas demander un TGT via une attaque de type Pass-the-key, ce qui rend lauthentification par Kerberos impossible. Dans tous les cas, loption ne permet pas de se prémunir contre le vol dun TGT et de la clé de session : le TGT dérobé peut toujours être utilisé par lattaquant pour demander un ticket de service et usurper lidentité de lutilisateur. Cependant, la durée de vie des tickets limite, dans le temps, la faisabilité de lattaque.
-
-
 
 Afin doptimiser le gain de sécurité apporté par la carte à puce dans le contexte de Kerberos, il convient de forcer la carte à puce pour les utilisateurs et de désactiver lauthentification NTLM (ce qui est actuellement compliqué à configurer). À défaut, le gain en sécurité restera limité.
 
-
-
-
-
 5
-
-
-
-
 
 Génération de PAC dans les tickets
 
-
-
-
-
 5.1 Principe général
-
-
 Comme décrit dans la partie 2.5, dans un environnement Active Directory, Kerberos est utilisé pour lauthentification ainsi que pour lautorisation via le mécanisme de la PAC qui permet aux contrôleurs de domaine de transmettre, via une structure KERB_VALIDATION_INFO, les données dautorisation.
 
-
-
 Si un attaquant dispose de certaines clés présentes dans lActive Directory, il est en mesure de signer correctement des PAC et de chiffrer les parties enc-part des tickets (TGT ou ticket de service). Cela lui confère donc la possibilité de générer des tickets de toutes pièces avec une PAC valide.
-
-
 
 Pour pouvoir générer un ticket de toutes pièces avec une PAC valide, deux clés sont nécessaires (cf. partie 2.5) :
 
@@ -1956,22 +1370,10 @@ la clé du service destinataire du ticket pour : générer la signature Server S
 
 chiffrer la partie enc-part du ticket.
 
-
-
-
-
 5.2
 
-
-
-
-
 Génération de TGT
-
-
 Les TGT sont des tickets au même titre que les tickets de service avec quelques particularités, parmi lesquelles leur SPN qui est de la forme krbtgt/REALM@REALM. Le service destinataire étant le TGS, la clé du service destinataire est KKDC.
-
-
 
 La seule connaissance de KKDC est donc nécessaire pour pouvoir forger un TGT avec une PAC et permet :
 
@@ -1979,59 +1381,29 @@ de générer les deux signatures de la PAC (KDC Signature et Server Signature) ;
 
 de chiffrer la partie enc-part du ticket.
 
-
-
 Avec un ticket TGT forgé de toutes pièces, il devient possible de sauthentifier auprès du service TGS dun KDC pour demander des tickets de service. La PAC contenue dans le TGT sera déchiffrée, vérifiée et recopiée telle quelle dans le ticket de service généré.
-
-
 
 Ainsi, la connaissance de KKDC permet de forger une PAC et un TGT puis dobtenir un ticket de service pour nimporte quel serveur ou service du royaume Kerberos (cest-à-dire du domaine Active Directory). La compromission du compte krbtgt offre donc à un attaquant une emprise complète sur le domaine.
 
-
-
-
-
 5.3 Génération de tickets de service
-
-
 Pour pouvoir forger un ticket de service, deux clés sont a priori nécessaires :
 
 KKDC pour générer la signature KDC Signature de la PAC ;
 
 la clé du service destinataire pour générer la signature Server Signature de la PAC et chiffrer la partie enc-part du ticket.
 
-
-
-
-
 Comme vu dans la partie 2.3, au sein de lActive Directory, les clés des services sont généralement celles du serveur qui les héberge. Par exemple, pour le SPN cifs/serveur-01.demo.test, KS correspond aux clés du compte machine serveur-01 dans lActive Directory.
-
-
 
 Si on perçoit bien lutilité de la signature de la PAC avec KS (pour générer la signature Server Signature) ainsi que le chiffrement du ticket, on peut légitimement se questionner sur lutilité de la signature de la PAC avec KKDC (pour générer la signature KDC Signature) puisque le serveur destinataire ne connaît pas cette clé et ne peut donc pas vérifier cette signature.
 
-
-
 Cette signature est utilisée dans le cadre de la « validation de la PAC » [5]. Ce mécanisme permet au serveur de valider la PAC auprès du KDC via le protocole NETLOGON. Dans le cas où la validation de la PAC est activée (ce qui nest pas systématique), le serveur retransmet la PAC reçue et la KDC Signature à un KDC qui doit valider la signature avec KKDC.
-
-
 
 Cette vérification entraîne une latence réseau importante ainsi quune communication entre le serveur et le KDC. Dans les faits, elle est rarement utilisée [30], voire désactivée par défaut depuis Windows Server 2008 [25].
 
-
-
 Ainsi, dans la majorité des cas, seule la clé KS est nécessaire pour générer un ticket de service valide. Si un attaquant dispose des clés associées à un compte machine, il est donc en mesure de générer des tickets de service pour cette machine avec une PAC arbitraire et ainsi dy accéder avec nimporte quel droit ou privilège.
 
-
-
-
-
 5.4 Scénarios envisageables
-
-
 Comme démontré dans les paragraphes précédents, si un attaquant dispose des clés du compte krbtgt ou dun compte de serveur, il est en mesure de demander ou de générer des tickets de service avec une PAC modifiée à sa guise.
-
-
 
 Plusieurs scénarios sont alors envisageables, mais le plus intéressant consiste à présenter un ticket au nom dun utilisateur quelconque, tout en ajoutant des SID de groupes auxquels lutilisateur nappartient pas. Ainsi, si des SID de groupes sont frauduleusement ajoutés, lutilisateur authentifié va disposer de droits daccès et de privilèges supplémentaires lui permettant daccéder à des ressources comme sil faisait légitiment partie de ces groupes. Parmi les SID les plus intéressants à ajouter, on peut citer :
 
@@ -2039,63 +1411,25 @@ le SID S-1-5-21-domaine-512 correspondant au groupe « Administrateurs du domain
 
 le SID S-1-5-18 correspondant à lentité SYSTEM et conférant le niveau de droit maximal auprès du système Windows.
 
-
-
 Il sagit donc dun moyen très aisé de réaliser des élévations de privilèges. Ceci montre limportance de mettre en place une journalisation et un processus de traitement adéquat (cf. partie 10) afin dêtre en mesure de détecter toute anomalie.
-
-
-
-
 
 6
 
-
-
-
-
 Relations interdomaines
-
-
 Une fonctionnalité importante de Kerberos est la possibilité détablir des relations de confiance (ou relations dapprobation) entre deux domaines Kerberos (cross-realm trust). Ce mécanisme, repris par Microsoft dans lActive Directory, a permis de simplifier les relations entre domaines Windows et de faire apparaître la notion de forêt.
-
-
-
-
 
 6.1
 
-
-
-
-
 Relations du point de vue Kerberos
-
-
 Lorsquun domaine Kerberos approuve un autre domaine, un compte (appelé compte de trust) symbolisant la relation est créé dans chaque domaine et un secret, partagé entre les deux domaines, y est associé. Ce secret permet la création de referral tickets mis en oeuvre lorsquun utilisateur dun domaine approuvant souhaite sauthentifier sur un domaine approuvé.
-
-
 
 Afin dillustrer le processus dauthentification entre deux domaines, prenons lexemple dun utilisateur dun domaine A (userA @ DOMAINEA) qui souhaite sauthentifier sur un service dun domaine B (serviceB/serveurB @ DOMAINEB). Le processus déchange de tickets Kerberos est décrit ci-dessous.
 
-
-
-
-
 * * *
-
-
-
-
 
 FIGURE4: Synopsis dune authentification cross-domain
 
-
-
-
-
 * * *
-
-
 
 Lutilisateur userA commence par récupérer un TGT auprès dun KDC de son domaine via un échange KRB_AS_REQ/KRB_AS_REP (figure 4, étape ) :
 
@@ -2103,17 +1437,9 @@ Lutilisateur userA commence par récupérer un TGT auprès dun KDC de son domain
 
 service demandé : krbtgt/DOMAINEA @ DOMAINEA ;
 
-
-
-
-
 [KRB_AS_REP] - Fourniture dun TGT (la partie enc-part du TGT est chiffrée au moyen de la clé KKDC du domaine A) : pour : userA @ DOMAINEA ;
 
 service : krbtgt/DOMAINEA @ DOMAINEA.
-
-
-
-
 
 Lutilisateur demande ensuite un referral ticket pour le domaine B auprès dun KDC du domaine A. Cette demande prend la forme dune demande classique de ticket (échange KRB_TGS_REQ / KRB_TGS_REP) vers un KDC de son domaine (figure 4, étape ) :
 
@@ -2121,17 +1447,9 @@ Lutilisateur demande ensuite un referral ticket pour le domaine B auprès dun KD
 
 service demandé : krbtgt/DOMAINEB @ DOMAINEB ;
 
-
-
-
-
 [KRB_TGS_REP] - Fourniture dun referral ticket pour le domaine B : Pour : userA @ DOMAINEA ;
 
 service : krbtgt/DOMAINEB @ DOMAINEB.
-
-
-
-
 
 La spécificité concerne la partie (enc-part) du referral ticket généré : celle-ci est chiffrée avec la clé du compte de trust entre le domaine A et le domaine B.
 
@@ -2141,30 +1459,14 @@ Le referral ticket tient lieu de TGT pour le domaine B et permet ensuite à luti
 
 service demandé : serviceB/serveurB @ DOMAINEB ;
 
-
-
-
-
 [KRB_TGS_REP] - Fourniture dun ticket de service : pour : userA @ DOMAINEA,
 
 service : service/serveur @ DOMAINEB.
 
-
-
-
-
 Le referral ticket étant chiffré par les clés associées au compte du trust, cela permet au KDC du domaine B dauthentifier le client. Le KDC délivre alors un ticket de service pour son domaine et le client na plus quà le présenter via un échange KRB_AP_REQ / KRB_AP_REP au service du domaine B (figure 4, étape ).
 
-
-
-
-
 6.2 Relations du point de vue Active Directory
-
-
 Au sein dun domaine Active Directory, une relation entre domaines se concrétise par un objet de classe trustedDomain symbolisant le trust (on parle alors de TDO pour Trusted Domain Object). Celui-ci est créé dans le conteneur System de lannuaire du domaine. Par exemple, lobjet suivant définit une relation dapprobation entre le domaine domaineA.test et le domaine domaineB.test.
-
-
 
 Dn: CN=domaineB.test,CN=System,DC=domaineA,DC=test
 
@@ -2190,15 +1492,9 @@ trustType: 2 = ( UPLEVEL );
 
 Tous les attributs dun objet TDO sont décrits dans [9]. Les différents types de relations dapprobation, définis par les attributs trustAttributes, trustType et trustDirection sont détaillés dans la partie 6.4.
 
-
-
 Dans lexemple précédent, les attributs trustAuthIncoming et trustAuthOutgoing qui hébergent les secrets liés à la relation dapprobation napparaissent pas (ceux-ci étant de type SecretAttribut [8]).
 
-
-
 Par compatibilité avec les relations dapprobation des domaines Windows NT 4 et les trusts mettant en oeuvre NETLOGON, un autre objet est également créé. Celui-ci correspond à un compte utilisateur, mais de type TRUST_ACCOUNT.
-
-
 
 Dn: CN= DOMAINEB$,CN=Users,DC=domaineA,DC=test
 
@@ -2220,16 +1516,8 @@ userAccountControl: 0x820 = ( PASSWD_NOTREQD | INTERDOMAIN_TRUST_ACCOUNT );
 
 Là encore, les attributs stockant les secrets dauthentification napparaissent pas (unicodePwd, supplementalCredentials, etc.).
 
-
-
-
-
 6.3 PAC dans les relations dapprobation
-
-
 Un aspect fondamental de la sécurité des relations dapprobation est le traitement de la PAC au sein des referral tickets.
-
-
 
 Si lon reprend lexemple de lauthentification dun utilisateur du domaine A auprès dun service du domaine B (cf. partie 6.1), le traitement de la PAC est le suivant : lors de la génération du TGT par un KDC du domaine A pour lutilisateur userA @ DOMAINEA, une PAC représentant le contexte de sécurité de cet utilisateur est générée par le contrôleur de domaine et contient (à titre dexemple) :
 
@@ -2241,17 +1529,9 @@ GroupIds : liste des identifiants des groupes (RID) dappartenance de lutilisateu
 
 ExtraSids : Liste de SID supplémentaires ajoutés, en particulier ceux présents dans le champ sIDHistory ou S-1-18-117 .
 
-
-
-
-
 Lors de la génération du referral ticket, la PAC est recopiée depuis le TGT vers le referral ticket puis est chiffrée avec le secret du compte du trust.
 
-
-
 Lorsque le KDC du domaine B est sollicité pour générer un ticket de service pour lutilisateur du domaine A, il se base sur la PAC contenue dans le referral ticket présenté pour générer la PAC du ticket de service. Si le KDC du domaine B avait une confiance absolue envers le KDC du domaine A (cest-à-dire si la PAC était recopiée telle quelle du referral ticket vers le ticket de service), cela présenterait un risque important de sécurité pour le domaine B. En effet, si le domaine A venait à être compromis, un attaquant serait en mesure de daugmenter ses droits auprès du domaine B en rajoutant arbitrairement des SID dans la PAC du referral ticket. Des SID intéressants à rajouter seraient par exemple celui du groupe « Administrateurs du domaine » du domaine B ou celui de lentité SYSTEM (S-1-5-18).
-
-
 
 Cet ajout de SID peut être effectué de deux manières différentes :
 
@@ -2259,29 +1539,13 @@ en éditant lattribut sIDHistory dun utilisateur : même si cette opération nes
 
 en forgeant de toutes pièces une PAC dans un referral ticket : cette méthode repose sur le même principe que celui décrit dans la partie relatives à la génération de TGT (cf. partie 5.2). La seule différence concerne la clé nécessaire au chiffrement du ticket et la signature de la PAC : il ne sagit plus de celle du compte krbtgt, mais de celle du compte du trust.
 
-
-
-
-
 La récupération par un attaquant des secrets des comptes dun trust dun domaine met donc en péril les domaines approuvant celui-ci au travers dune relation dapprobation.
-
-
 
 Afin de se prémunir contre de tels scénarios, les contrôleurs de domaine Active Directory appliquent systématiquement une politique de filtrage des SID lorsquils traitent un referral ticket. Cette politique permet de déterminer les SID qui sont conservés (cest-à-dire ceux recopiés dans le ticket de service) et ceux qui sont filtrés donc exclus. La politique appliquée dépend du type de la relation dapprobation existante entre les deux domaines. La partie suivante détaille les différents types de relations dapprobation et la partie 6.5 détaille les différentes politiques de filtrage de SID.
 
-
-
-
-
 6.4
 
-
-
-
-
 Types de relations dapprobation
-
-
 Le type dune relation dapprobation entre deux domaines est principalement caractérisé par trois attributs du TDO de la relation dapprobation :
 
 trustDirection qui spécifie le sens de la relation ;
@@ -2289,10 +1553,6 @@ trustDirection qui spécifie le sens de la relation ;
 trustType qui spécifie le type de la relation ;
 
 trustAttributes qui spécifie divers attributs et propriétés de la relation.
-
-
-
-
 
 Lattribut trustDirection indique le sens de la relation dapprobation, donc celui de la confiance, et peut prendre les valeurs suivantes :
 
@@ -2302,13 +1562,7 @@ TRUST_DIRECTION_OUTBOUND : indique que la relation dapprobation est unidirection
 
 TRUST_DIRECTION_BIDIRECTIONAL : indique que la relation dapprobation est bidirectionnelle.
 
-
-
-
-
 Si lon se place dans un domaine donné, ce sont donc les valeurs OUTBOUND et BIDIRECTIONAL qui sont potentiellement dangereuses, car elles indiquent que le domaine concerné approuve un domaine distant, cest-à-dire que les referral tickets en provenance de ce domaine sont acceptés.
-
-
 
 Lattribut trustType indique le type de relation et peut prendre les valeurs suivantes :
 
@@ -2317,10 +1571,6 @@ TRUST_TYPE_DOWNLEVEL : indique que le domaine distant nest pas de type Active Di
 TRUST_TYPE_UPLEVEL : indique que le domaine distant est de type Active Directory ;
 
 TRUST_TYPE_MIT : indique que le domaine distant nest ni de type Active Directory ni Windows NT. Il sagit généralement dun domaine Kerberos de type MIT ou Heimdal. Dans ce cas, lautorisation nest pas prise en compte et les éventuelles PAC des referral tickets sont rejetées.
-
-
-
-
 
 Enfin, lattribut trustAttributes indique les propriétés de la relation dapprobation. Les principales propriétés sont :
 
@@ -2336,13 +1586,7 @@ TRUST_ATTRIBUTE_QUARANTINED_DOMAIN ;
 
 TRUST_ATTRIBUTE_TREAT_AS_EXTERNAL.
 
-
-
-
-
 Une des propriétés les plus importantes est WITHIN_FOREST qui détermine si les deux domaines appartiennent à la même forêt. Cette propriété est positionnée automatiquement pour les relations intraforêt de type Parent-child trust ou Tree-root trust.
-
-
 
 Si WITHIN_FOREST nest pas positionné, il sagit dune relation extraforêt. Dans ce cas, les caractéristiques de la relation peuvent être précisées au moyen des propriétés suivantes :
 
@@ -2354,25 +1598,11 @@ TREAT_AS_EXTERNAL indique, uniquement dans le cas où FOREST_TRANSITIVE est posi
 
 QUARANTINED_DOMAIN va modifier la politique de filtrage de SID. Cette propriété peut être modifiée au moyen de la commande netdom trust /quarantine [6].
 
-
-
-
-
 Les relations de type DOWNLEVEL sont toujours considérées comme des relations de type extraforêt et la propriété TRUST_ATTRIBUTE_CROSS_ORGANIZATION_NO_TGT_DELEGATION permet de désactiver entièrement la délégation sur un domaine approuvé en ne positionnant jamais loption ok-as-delegate dans les tickets de service émis.
-
-
-
-
 
 6.5
 
-
-
-
-
 Filtrage des SID
-
-
 Les différentes politiques de filtrage des PAC sont détaillées dans [15]. La détermination de la politique dépend des propriétés de la relation dapprobation. Les différentes politiques sont :
 
 WithinForest : appliquée à une relation ayant la propriété WITHIN_FOREST ;
@@ -2385,15 +1615,7 @@ External : appliquée à une relation (au choix) : nayant pas la propriété FOR
 
 ayant les propriétés FOREST_TRANSITIVE et TREAT_AS_EXTERNAL activées simultanément ;
 
-
-
-
-
 QuarantinedExternal : appliquée à une relation ayant la propriété QUARANTINED_DOMAIN, mais pas WITHIN_FOREST.
-
-
-
-
 
 Chaque SID présent dans la PAC du referral ticket est catégorisé en différentes catégories suivant les critères suivants :
 
@@ -2407,19 +1629,11 @@ DomainSpecific : SID considéré comme propre à un domaine. Il sagit de SID de 
 
 SID en quarantaine : le SID nappartient pas au domaine approuvé.
 
-
-
-
-
 La politique de filtrage définit alors les SID qui sont conservés et ceux qui sont filtrés suivant la nature de la relation dapprobation :
 
 WithinForest : les SID de type AlwaysFilter sont filtrés,
 
 les SID de type DomainSpecific et AlwaysFilter sont filtrés ;
-
-
-
-
 
 QuarantinedWithinForest : les SID de type AlwaysFilter sont filtrés,
 
@@ -2427,27 +1641,15 @@ les SID de type DomainSpecific et ForestSpecific sont filtrés,
 
 les SID en quarantaine sont filtrés ;
 
-
-
-
-
 CrossForest : les SID de type AlwaysFilter sont filtrés,
 
 les SID de type DomainSpecific et ForestSpecific sont filtrés,
 
 les SID doivent appartenir à la forêt approuvée (cest-à-dire au moins à un domaine) ;
 
-
-
-
-
 External : les SID de type AlwaysFilter sont filtrés,
 
 les SID de type DomainSpecific et ForestSpecific sont filtrés ;
-
-
-
-
 
 QuarantinedExternal : les SID de type AlwaysFilter sont filtrés,
 
@@ -2455,72 +1657,30 @@ les SID de type DomainSpecific et ForestSpecific sont filtrés,
 
 les SID en quarantaine sont filtrés.
 
-
-
-
-
 Note : un traitement particulier est effectué pour le SID ENTERPRISE_DOMAIN_CONTROLLERS (S-1-5-9), cest-à-dire le SID affecté à tous les contrôleurs de domaine dune forêt. Ce SID est conservé uniquement pour les relations de type intraforêt.
 
-
-
-
-
 6.6 Sécurité des relations
-
-
 Dans la pratique, toutes les relations entre domaines dune même forêt sont de type WithinForest et il est très rare (et déconseillé [6]), de positionner la propriété QUARANTINED_DOMAIN sur ce type de relation. Ainsi, la politique de filtrage WithinForest sapplique et tous les contrôleurs de domaine de la forêt ne filtrent que les SID catégorisés comme AlwaysFilter ou DomainSpecific.
-
-
 
 Si un attaquant arrive à compromettre un domaine, il est alors en mesure dutiliser le mécanisme des referral tickets pour usurper une identité privilégiée sur un domaine approuvé. De fil en fil, il peut compromettre tous les domaines de la forêt. La compromission dun domaine entraîne donc la compromission de tous les domaines de la forêt. Doù la phrase dogmatique : « la frontière dadministration est le domaine, la frontière de sécurité est la forêt ».
 
-
-
 Pour les relations extraforêt, la sécurité dépend des paramètres de la relation. Il faut cependant être vigilant avec les relations ayant une politique de filtrage de type External : le filtrage mis en oeuvre dans ce cas est insuffisant et permet de réaliser des élévations de privilèges en usurpant des identités dun domaine à lautre.
-
-
 
 Dans ce cas, il est recommandé dactiver le filtrage des SID18 afin de filtrer tous les SID nappartenant pas au domaine distant.
 
-
-
-
-
 7
-
-
-
-
 
 Délégation
 
-
-
-
-
 7.1 Principe de la délégation
-
-
 Comme abordé dans la partie 2.5, après authentification dun utilisateur, un serveur peut utiliser le mécanisme de limpersonation afin de prendre lidentité dun utilisateur authentifié pour effectuer le contrôle daccès à ses ressources locales. Cependant, sans la délégation dauthentification, le serveur serait incapable de sauthentifier à distance au nom de lutilisateur dans un contexte dimpersonation.
-
-
 
 La délégation dauthentification consiste donc à permettre à un serveur, après authentification dun utilisateur, de sauthentifier au nom de celui-ci auprès dautres serveurs. Pour ce faire, pendant ou après lauthentification dun client, le serveur doit récupérer des éléments nécessaires pour réaliser les authentifications distantes. Tous les protocoles dauthentification ne se prêtent pas à la délégation, en particulier ceux basés sur des défi-réponses (NTLM, Digest, etc.). En effet, avec ce type de protocole, les empreintes des utilisateurs devraient être transmises au serveur, ce qui nest pas acceptable. En revanche, Kerberos, de par son mécanisme des tickets, est particulièrement adapté à la délégation : si celle-ci est autorisée, un ticket et une clé de session associée sont transmis au serveur et permettent à celui-ci de sauthentifier au nom du client. Ces éléments, ticket et clé, pourront soit être transmis par le client lui-même, soit récupérés par le serveur auprès dun KDC.
 
-
-
 La délégation étant une opération sensible du point de vue de la sécurité, elle est contrôlée par plusieurs paramètres décrits ci-dessous. Dans tous les cas, il est possible de désactiver la capacité de délégation dun compte en positionnant loption ADS_UF_NOT_DELEGATED sur lattribut userAccountControl [23] du compte dans lannuaire. Par défaut, dans un Active Directory, tous les comptes peuvent être délégués (loption ADS_UF_NOT_DELEGATED nest positionnée sur aucun compte). La restriction de délégation des comptes sensibles, en particulier ceux dadministration, est une mesure de sécurisation fortement recommandée.
 
-
-
-
-
 7.2 Délégation complète
-
-
 La délégation complète (unconstrained delegation19 ) est apparue dès Windows 2000 et reprend celle proposée dans la RFC 1510. Celle-ci permet à un client de déléguer complètement son authentification à un serveur en lui transmettant un TGT ainsi que la clé de session associée. Avec ces deux éléments, le serveur est alors en mesure de demander à un KDC des tickets de service au nom de lutilisateur pour nimporte quel service.
-
-
 
 Dans lActive Directory, lactivation de cette forme de délégation requiert deux conditions :
 
@@ -2528,88 +1688,38 @@ le serveur doit préalablement être autorisé pour la délégation complète en
 
 le client ne doit pas être interdit de délégation (cf. paragraphe précédent).
 
-
-
-
-
 Lorsquun client est autorisé pour la délégation complète, lattribut forwardable est activé dans les options de son TGT (figure 5, étape ). De même, un client est informé quil se connecte à un serveur approuvé pour la délégation via lattribut ok-as-delegate activé dans les options du ticket de service reçu par le client (figure 5, étape ). Si les deux conditions sont réunies, le SSP Kerberos décide, automatiquement et systématiquement, de déléguer lauthentification.
-
-
 
 Pour réaliser cette délégation, le client doit envoyer au serveur un TGT à son nom. Il ne peut cependant pas envoyer son TGT initial, car celui-ci est potentiellement restreint à son adresse réseau20 . Un second TGT est donc demandé21 22 (figure 5, étape ) : il sagit dun TGT ayant lattribut forwarded positionné, qui stipule que le ticket nest plus restreint à ladresse du client (le terme de forwarded TGT sera utilisé dans la suite pour désigner ce TGT). Un TGT avec loption forwarded nest délivré que si le TGT servant à authentifier la demande possède lattribut forwardable.
 
-
-
-
-
 * * *
-
-
-
-
 
 FIGURE5: Synopsis de la délégation complète
 
-
-
-
-
 * * *
-
-
 
 Une fois en possession du forwarded TGT, le client doit lenvoyer avec la clé de session associée au serveur. Le processus de transfert est décrit dans la RFC 4121 : dans le message KRB_AP_REQ dauthentification du client auprès du serveur, le checksum du champ cksum est modifié pour inclure une structure de type KRB_CRED. Celle-ci contient alors le ticket et la clé de session (respectivement dans les champs tickets et enc-part.ticket-info.key) (figure 5, étape ).
 
-
-
 En recevant un message KRB_AP_REQ, le serveur regarde si un forwarded TGT est présent dans la requête. Dans laffirmative, le forwarded TGT est récupéré et conservé dans les données de la session dauthentification associée à lutilisateur (figure 5, étape ). La présence du TGT permet de donner une capacité de délégation : en cas dauthentification distante sur un serveur tiers, lopération est réalisée non pas dans le contexte dauthentification du serveur, mais dans celui du client.
 
-
-
-
-
 7.3 Risques associés à la délégation complète
-
-
 Au vu de son mode de fonctionnement, la délégation complète est un mécanisme risqué. Un client qui transmet à un serveur son TGT et la clé de session associée na alors plus aucun contrôle dessus. Avec ces éléments, le serveur a la possibilité de demander des tickets de service au nom du client pour nimporte quel autre serveur.
-
-
 
 Si un attaquant prend le contrôle dun serveur approuvé pour la délégation, il est en mesure dénumérer les sessions dauthentification en cours sur la machine et de récupérer les TGT et clés associées de tous les utilisateurs authentifiés ou qui se sont récemment authentifiés auprès de ce serveur. La réutilisation de ces TGT est dautant plus facile quils ne sont pas restreints à une adresse réseau donnée.
 
-
-
 Dans une configuration par défaut dun Active Directory, seuls les contrôleurs de domaine sont, structurellement, approuvés pour la délégation complète. Lapprobation dun autre serveur est une opération ayant des conséquences de sécurité importantes et ne doit être effectuée quen cas de nécessité. Dans tous les cas, tout serveur approuvé pour la délégation doit être considéré comme aussi sensible quun contrôleur de domaine.
-
-
-
-
 
 8
 
-
-
-
-
 Service for User (S4U)
-
-
 Afin dapporter plus de finesse, et donc de sécurité, dans la délégation, Windows 2003 a vu lapparition de deux nouvelles extensions venues compléter le protocole Kerberos. Regroupées sous la norme Service for User [10] (S4U), ces extensions, Service-for-User-to-Self (S4U2self ) et Service-for-User-to-Proxy (S4U2proxy), apportent les fonctionnalités suivantes :
 
 la transition de protocole (protocol transition) ;
 
 la délégation contrainte (constrained delegation).
 
-
-
-
-
 8.1 Service-for-User-to-Self (S4U2self)
-
-
 S4U2self permet à un serveur dobtenir un ticket de service pour lui-même tout en spécifiant arbitrairement le nom du client du ticket. Cette opération est effectuée via un message KRB_TGS_REQ en ajoutant, dans la partie preauthentication data (padata), un bloc de type PA-FOR-USER qui indique au KDC le nom du client désiré pour le ticket (qui, dans une requête traditionnelle, devrait être le nom du demandeur, cest-à-dire, dans ce cas, le nom du serveur qui effectue la demande). Via lAPI, cette action est réalisée via un appel à la fonction LsaLogonUser avec un message de type KerbS4ULogon. Un exemple de code est donné sur [2].
-
-
 
 Le serveur, destinataire du ticket, va utiliser la PAC (cf. partie 2.5) incluse dans le ticket S4U2self pour constituer un jeton de sécurité (access token) représentant le contexte de sécurité du client spécifié. Une application de lextension S4U2self permet donc à un serveur de disposer dun jeton de sécurité pour nimporte quel utilisateur. Ce jeton peut ensuite être utilisé pour :
 
@@ -2617,170 +1727,74 @@ lidentification du client (niveau SecurityIdentification) en utilisant les fonct
 
 le contrôle daccès (niveau SecurityImpersonation) à ses ressources locales en affectant le jeton à un thread afin demprunter lidentité du client (mécanisme dimpersonation) pour le contrôle daccès.
 
-
-
 Le niveau dimpersonation du jeton [21] est, par défaut, SecurityIdentification. Cependant, si le serveur dispose du privilège SeTcbPrivilege23 , le niveau est SecurityImpersonation.
-
-
 
 Une description détaillée de S4U2self et la présentation dautres utilisations peuvent être trouvées dans [26].
 
-
-
 Point important pour la partie ci-dessous : si, dans lActive Directory, loption ADS_UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION (T2A4D) est activée dans le champ userAccountControl du compte machine associé au serveur, le ticket S4U2self aura loption forwardable activée.
 
-
-
-
-
 8.2 Service-for-User-to-Proxy (S4U2proxy)
-
-
 S4U2proxy permet à un serveur dobtenir un ticket de service pour un autre service tout en spécifiant arbitrairement le nom du client du ticket. Cette opération est effectuée via un message KRB_TGS_REQ ayant les propriétés suivantes :
 
 lattribut cname-in-addl-tkt est activé dans les options de ticket demandées (champ TGS-REQ.req-body.kdc-options). Ceci indique au service TGS que le nom du client dans le ticket devant être créé ne doit pas être celui qui effectue la demande (cest-à-dire le serveur), mais celui spécifié par le ticket inclus dans la partie KDC-REQ-BODY (champ TGS-REQ.req-body.additional-tickets) ;
 
 le champ TGS-REQ.req-body.additional-tickets contient un ticket (ce champ est généralement absent dans une requête classique).
 
-
-
-
-
 Le ticket inclus par le serveur dans le champ TGS-REQ.req-body.additional-tickets peut être obtenu de deux manières différentes. Si le client sest authentifié par Kerberos, il sagit du ticket de service présenté le client lorsquil sest authentifié auprès du serveur. Ce ticket doit cependant avoir lattribut forwardable activé dans les options du ticket. Cet attribut nest positionné par le KDC quà condition que le compte du client soit autorisé à être délégué (cf. partie 7.2).
-
-
 
 Si le client ne sest pas authentifié par Kerberos, le serveur peut utiliser le mécanisme S4U2self présenté ci-dessus pour demander un ticket attribué au client pour le serveur. Là encore, ce ticket ne peut être présenté dans une requête S4U2proxy que si lattribut forwardable est activé (ce qui est le cas si ADS_UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION est positionné dans le champ userAccountControl du compte du serveur). Ce scénario est utilisé lorsque le client ne sauthentifie pas en Kerberos auprès du serveur alors que le serveur doit sauthentifier en Kerberos au nom du client auprès dun autre service. Il constitue donc le principe de la transition de protocole (protocol transition).
 
-
-
 Cependant, le serveur ne peut obtenir de ticket pour nimporte quel service. Le SPN du service demandé doit préalablement être autorisé en étant présent dans lattribut msDS-AllowedToDelegateTo (A2D2) du compte de machine associé au serveur. Ainsi, contrairement à la délégation complète qui permet au serveur dobtenir un ticket pour nimporte quel service, S4U2proxy impose que les services pour lesquels un ticket est demandé soient préalablement déclarés dans lActive Directory. Cette exigeance constitue le principe de la délégation contrainte (constrained delegation). Une seconde restriction, introduite avec Windows Server 2012, permet de spécifier, via lattribut msDS-AllowedToActOnBehalfOfOtherIdentity [10] les entités de sécurité autorisées à se connecter à un service donné.
-
-
 
 Il faut noter que, lorsquun serveur emprunte lidentité dun utilisateur via le mécanisme de limpersonation et quil doit sauthentifier à distance au nom de cet utilisateur, le SSP Kerberos commence par tenter la délégation complète en regardant si un TGT est présent dans la session dauthentification de lutilisateur. Si un forwarded TGT est présent, il est utilisé pour demander un ticket de service au nom du client. Si aucun TGT nest présent, la délégation contrainte est tentée via une requête S4U2proxy. Cette extension est donc bien plus souvent utilisée quil ny paraît.
 
-
-
-
-
 8.3 Sécurité des extensions S4U
-
-
 S4U2self ne présente pas de risque particulier. Il est certes possible, par cette extension, dobtenir un jeton de sécurité ayant un niveau SecurityImpersonation pour nimporte quel utilisateur du domaine (autorisé pour la délégation), mais cela nécessite le privilège SeTcbPrivilege. Or, par défaut, ce privilège nest accordé quà lentité LocalSystem et il est fortement déconseillé de le concéder à dautres utilisateurs.
-
-
 
 Quant à S4U2proxy, cette extension permet la délégation contrainte qui améliore grandement la sécurité de la délégation en permettant de restreindre les services destinataires. En revanche, si la transition de protocole est activée pour un serveur, celui-ci a la possibilité de sauthentifier auprès de tous les services autorisés sous lidentité de nimporte quel utilisateur du domaine (autorisé à être délégué). Il convient donc de considérer ce type de serveur tout aussi sensible quun contrôleur de domaine, au même titre que ceux autorisés pour la délégation complète.
 
-
-
-
-
 9
 
-
-
-
-
 Problématique du compte krbtgt
-
-
 Comme décrit dans la partie 2.2, la clé KKDC24 est stockée au sein de lActive Directory dans les attributs du compte krbtgt. Or cette clé doit être commune à tous les contrôleurs de domaine afin quun TGT ou quune signature PAC générés par un contrôleur de domaine donné soient valides auprès dun autre contrôleur.
-
-
 
 La synchronisation de cette clé est assurée par le mécanisme de réplication de lActive Directory [7] qui se charge de recopier les attributs des objets de lannuaire Active Directory sur tous les contrôleurs de domaine.
 
-
-
 De plus, afin daméliorer la sécurité, cette clé est régulièrement changée. Ainsi, le contrôleur de domaine ayant le rôle FSMO25 PDC Emulator procède, par défaut tous les 30 jours, au changement du mot de passe du compte krbtgt et ainsi au renouvellement de la clé KKDC. Dans un laps de temps plus ou moins long suivant la complexité de lannuaire et du réseau (mais tout de même de lordre de quelques minutes), les nouvelles clés sont transmises à tous les contrôleurs de domaine via la réplication Active Directory.
-
-
 
 Après un changement de clé KKDC, tous les TGT et les PAC signés devraient se voir invalidés. Ce cas est toutefois prévu : si un client présente un TGT chiffré avec une mauvaise clé KKDC, le KDC lui retourne lerreur KRB_AP_ERR_MODIFIED indiquant au client que son TGT est invalide. Celui-ci doit effacer le TGT de son cache, puis en redemander un nouveau. Dans pareil cas, le changement des clés KKDC devrait provoquer un pic de renouvellement des TGT.
 
-
-
 Cependant, après un changement de clé KKDC, un problème plus complexe surviendrait : les contrôleurs qui posséderaient lancienne clé KKDC ne seraient plus en état de récupérer la nouvelle clé. En effet, ne possédant que lancienne clé KKDC, les TGT chiffrés avec cette clé ne pourraient pas être déchiffrés (et donc acceptés) par les contrôleurs disposant de la nouvelle clé. Les contrôleurs de domaine avec lancienne clé seraient donc dans lincapacité de sauthentifier auprès des contrôleurs disposant de la nouvelle et seraient donc incapables de récupérer la nouvelle clé KKDC.
-
-
 
 Pour éviter ces problèmes, Microsoft a choisi une solution simple et efficace : pour le service TGS, les clés valables sont celles correspondant au mot de passe courant et au mot de passe précédent. Lors du traitement dun TGT, un contrôleur de domaine commence par essayer de le déchiffrer avec la clé courante et, en cas déchec, réitère lopération avec la clé précédente26 . Cest seulement en cas de second échec que lerreur KRB_AP_ERR_MODIFIED est renvoyée au client.
 
-
-
 Cette solution peut paraître compliquée, mais elle résout de nombreux problèmes liés au changement des clés KKDC qui au final sont renouvelées tous les 30 jours, mais valables 60 jours. Cest en tout cas une situation bien meilleure quune absence de renouvellement comme on peut le constater dans de nombreuses autres implémentations. Mais, si lon souhaite changer complètement les clés KKDC, il faut donc procéder à deux changements successifs du mot de passe du compte krbtgt.
-
-
 
 Cette procédure de double changement est plus complexe quil ny paraît. En effet, si plusieurs contrôleurs de domaine sont présents, il est nécessaire de laisser suffisamment de temps, après le premier changement de mot de passe, pour sassurer que la réplication sest terminée et que tous les contrôleurs ont reçu la nouvelle clé KKDC. Passée cette première étape, il est possible de procéder au second changement. Cependant, le laps de temps entre ces deux changements offre une fenêtre pendant laquelle un attaquant pourrait générer un TGT (chiffré avec lancienne clé KKDC) et soctroyer des droits lui permettant de récupérer la nouvelle clé. Le changement du mot de passe du compte krbtgt nécessite donc disoler complètement les contrôleurs pendant les deux changements. Dans la pratique, cette opération est extrêmement compliquée (cf. partie 11.5).
 
-
-
-
-
 10
 
-
-
-
-
 Journalisation
-
-
 La journalisation est généralement un moyen assez efficace pour déceler une anomalie ou des comportements suspects. Deux types dévènements sont importants à surveiller :
 
 les évènements liés spécifiquement à Kerberos, majoritairement générés sur les contrôleurs de domaine ;
 
 les évènements liés à lauthentification dun utilisateur, générés sur tous les systèmes prenant part à lauthentification.
 
-
-
-
-
 Note : les identifiants dévènements décrits ci-dessous le sont par rapport au fournisseur de sécurité des systèmes Vista et supérieurs (Microsoft-Windows-Security-Auditing). Pour les systèmes Windows XP ou 2003, les évènements présentés sont, dans leur grande majorité, également générés par le fournisseur Security. La correspondance des identifiants dévènements entre les deux fournisseurs est effectuée en retranchant 4096.
 
-
-
-
-
 10.1 Évènements Kerberos
-
-
 La première catégorie dévènements intéressants liés à Kerberos concerne lémission, par les KDC, de tickets aux utilisateurs. Ces évènements sont répartis en deux sous-catégories : les demandes de TGT sur le service dauthentification AS (sous-catégorie Kerberos Authentication Service) et les demandes de ticket sur le service de délivrance de ticket TGS (sous-catégorie Kerberos Service Ticket Operations). Le tableau 2 recense ces évènements.
 
-
-
-
-
 * * *
-
-
 
 TABLE 2: Évènements Kerberos
 
-
-
-
+* * *
 
 * * *
 
-
-
-
-
 * * *
-
-
-
-
-
-* * *
-
-
-
-
 
 EventID
 
@@ -2788,27 +1802,11 @@ Service
 
 Description
 
-
-
-
+* * *
 
 * * *
 
-
-
-
-
 * * *
-
-
-
-
-
-* * *
-
-
-
-
 
 4768 AS A Kerberos authentication ticket (TGT) was requested
 
@@ -2822,37 +1820,17 @@ Description
 
 4773 TGS A Kerberos service ticket request failed
 
-
+* * *
 
 * * *
 
-
-
-
-
 * * *
 
-
-
-
-
 * * *
-
-
-
-
-
-* * *
-
-
-
-
 
 Par exemple, lorsquun TGT est délivré par un contrôleur de domaine, un événement 4768 est généré dont la description est la suivante :
 
 Un ticket dauthentification Kerberos (TGT) a été demandé.
-
-
 
 Informations sur le compte :
 
@@ -2862,23 +1840,17 @@ Nom du domaine Kerberos fourni : %2 (ex : DOMAINE)
 
 ID de lutilisateur : %3 (ex : DOMAINE\Administrateur)
 
-
-
 Informations sur le service :
 
 Nom du service : %4 (ex : krbtgt)
 
 ID du service : %5 (ex : DOMAINE\krbtgt)
 
-
-
 Informations sur le réseau :
 
 Adresse du client : %10 (adresse IPv4 ou IPv6 du client)
 
 Port client : %11 (port source de la requête)
-
-
 
 Informations supplémentaires :
 
@@ -2890,8 +1862,6 @@ Type de chiffrement du ticket : %8 (ex : 0x12 pour aes256-cts-hmac-sha1-96)
 
 Type de préauthentification : %9 (2: pa-enc-timestamp, 15/17: PA_PK_AS_REP)
 
-
-
 Informations sur le certificat :
 
 Nom de lémetteur du certificat : %12 (CN de lautorité)
@@ -2902,11 +1872,7 @@ Empreinte numérique du certificat : %14
 
 Les informations sur le certificat sont fournies uniquement si un certificat a été utilisé pour la préauthentification (extension PKINIT décrite dans la partie 3). Les types de préauthentification, les options de ticket, les types de chiffrement et les codes de résultat sont définis dans la RFC 4120.
 
-
-
 Il est important de noter que le seul élément journalisé permettant de connaître la machine depuis laquelle la requête de TGT a été effectuée est son adresse IP, et non le nom NetBios ou DNS de la machine, par exemple.
-
-
 
 De même, dans le cas de la délivrance dun ticket de service, un événement 4769 est généré.
 
@@ -2920,15 +1886,11 @@ Domaine du compte : %2 (ex : DEMO.TEST)
 
 GUID douverture de session : %10 (ex : 5fc6adab-2c07-40d4-c7ce-c79287c3a58f)
 
-
-
 Informations sur le service :
 
 Nom du service : %3 (ex : DC-2012-01$)
 
 ID du service : %4 (ex : DEMOTEST\DC-2012-01$)
-
-
 
 Informations sur le réseau :
 
@@ -2948,17 +1910,11 @@ Services en transit : %11
 
 Là encore, seule ladresse IP est journalisée. Il faut également souligner que, concernant le nom du service demandé pour le ticket, seul le nom du serveur est journalisé et non le SPN complet (par exemple serveur-01 au lieu de cifs/serveur-01.demo.test). Enfin, que ce soit pour lémission des TGT ou des tickets de service, les données contenues dans une éventuelle PAC ne sont jamais journalisées.
 
-
-
 Ainsi, en cas de suspicion dutilisation, par un attaquant, dun compte compromis, lanalyse des journaux des contrôleurs de domaine27 permet, via les évènements liés à lémission de ticket, de connaître :
 
 ladresse IP de la machine depuis laquelle lattaquant opère. En cas dutilisation dadresses dynamiques, le travail danalyse est alors plus complexe et nécessite dautres journaux, en particulier ceux des serveurs DHCP ;
 
 les machines pour lesquelles lattaquant a demandé un ticket de service, sans toutefois avoir dinformation précise sur le service demandé.
-
-
-
-
 
 Il faut souligner que ces évènements indiquent uniquement à quel moment des tickets ont été émis à un utilisateur donné. Il nest donc pas possible, avec uniquement ce type dévènements, de savoir :
 
@@ -2968,43 +1924,17 @@ si un utilisateur sest effectivement authentifié sur une machine (un ticket peu
 
 combien de fois lutilisateur sest authentifié (un ticket peut servir à sauthentifier pendant toute sa durée de validité).
 
-
-
-
-
 Dautres évènements, récapitulés dans le tableau 3, sont également importants à surveiller.
 
-
-
-
-
 * * *
-
-
 
 TABLE 3: Évènements de sécurité
 
-
-
-
+* * *
 
 * * *
 
-
-
-
-
 * * *
-
-
-
-
-
-* * *
-
-
-
-
 
 EventID
 
@@ -3012,65 +1942,25 @@ Sous-catégorie
 
 Description
 
-
-
-
+* * *
 
 * * *
 
-
-
-
-
 * * *
-
-
-
-
-
-* * *
-
-
-
-
 
 4675 Audit Logon SIDs were filtered
 
-
-
 4649 Audit Other Logon/Logoff Events A replay attack was detected
-
-
 
 5378 Audit Other Logon/Logoff Events The requested credentials delegation was disallowed by policy
 
-
-
-
+* * *
 
 * * *
 
-
-
-
-
 * * *
 
-
-
-
-
 * * *
-
-
-
-
-
-* * *
-
-
-
-
 
 Lévènement 4675 est généré lorsquun contrôleur de domaine traite un referral ticket et quun ou plusieurs SID sont filtrés conformément à la politique de filtrage (cf. partie 6.5) liée à la relation dapprobation entre le domaine du contrôleur où lévènement est généré et un domaine tiers. Normalement, aucun SID ne devant être filtré, la présence de cet évènement indique soit :
 
@@ -3078,15 +1968,9 @@ une mauvaise configuration du domaine distant (où des SID sont encore présents
 
 la compromission du domaine distant et la tentative, par un attaquant, de rebond sur un domaine approuvé.
 
-
-
 Dans tous les cas, il est indispensable danalyser la liste des SID filtrés indiqués par lévènement.
 
-
-
 Lévènement 4649 est généré lorsquun rejeu28 dauthentifiant Kerberos est détecté lors du traitement dun message KRB_AP_REQ. Il peut donc être émis par tout système prenant part à lauthentification Kerberos. Là encore, cet évènement peut indiquer une erreur de configuration (problème de date), un problème réseau (surtout en UDP) ou une tentative dattaque par rejeu dauthentifiant.
-
-
 
 Enfin, il existe également dautres fournisseurs de journalisation (event log provider), plus ou moins liés à Kerberos :
 
@@ -3098,50 +1982,20 @@ Microsoft-Windows-Kerberos-Key-Distribution-Center ;
 
 Microsoft-Windows-Security-Kerberos.
 
-
-
 Malheureusement, la liste des évènements29 pouvant être émis par ces fournisseurs montre que ceux-ci ne sont utiles quà des fins de diagnostic ou de résolution de problèmes et sont peu utiles du point de vue de la sécurité.
 
-
-
-
-
 10.2 Événements dauthentification
-
-
 La seconde famille dévènements intéressants à étudier concerne les évènements liés à lauthentification, quelle soit réalisée par Kerberos ou par tout autre protocole dauthentification. Les principaux évènements sont inventoriés dans le tableau 4.
 
-
-
-
-
 * * *
-
-
 
 TABLE 4: Évènements dauthentification
 
-
-
-
+* * *
 
 * * *
 
-
-
-
-
 * * *
-
-
-
-
-
-* * *
-
-
-
-
 
 EventID
 
@@ -3149,87 +2003,37 @@ Sous-catégorie
 
 Description
 
-
-
-
+* * *
 
 * * *
 
-
-
-
-
 * * *
-
-
-
-
-
-* * *
-
-
-
-
 
 4624 Audit Logon An account was successfully logged on
 
-
-
 4625 Audit Logon An account failed to log on
-
-
 
 4634 Audit Logoff An account was logged off
 
-
-
 4647 Audit Logoff User initiated logoff
-
-
 
 4964 Audit Special Logon Special groups have been assigned to a new logon
 
-
-
 4672 Audit Sensitive Privilege Use Special privileges assigned to new logon
 
-
-
-
+* * *
 
 * * *
 
-
-
-
-
 * * *
 
-
-
-
-
 * * *
-
-
-
-
-
-* * *
-
-
-
-
 
 Ainsi, sur chaque système où un utilisateur tente une authentification, un évènement est généré : 4624 en cas dauthentification réussie, 4625 en cas déchec.
-
-
 
 Lévènement 4624 est particulièrement important car il permet de tracer précisément les authentifications effectives sur chaque système de tous les utilisateurs, quils soient membres dun domaine ou local à un système. Sa description (partielle) est la suivante :
 
 Louverture de session dun compte sest correctement déroulée.
-
-
 
 Sujet :
 
@@ -3241,13 +2045,9 @@ Domaine du compte : %3
 
 ID douverture de session : %4
 
-
-
 Type douverture de session : %9
 
 (2:interactif, 3:network, 6:service, 10:remoteinteractive, etc.).
-
-
 
 Nouvelle ouverture de session :
 
@@ -3261,15 +2061,11 @@ ID douverture de session : %8
 
 GUID douverture de session : %13
 
-
-
 Informations sur le processus :
 
 ID du processus : %17
 
 Nom du processus : %18
-
-
 
 Informations sur le réseau :
 
@@ -3278,8 +2074,6 @@ Nom de la station de travail : %12
 Adresse du réseau source : %19
 
 Port source : %20
-
-
 
 Informations détaillées sur lauthentification :
 
@@ -3295,23 +2089,13 @@ Longueur de la clé : %16
 
 Les différents champs sont plus ou moins remplis suivant le type douverture de session et le protocole utilisé. Cependant, lorsque Kerberos est mis en oeuvre et dans le cas dune authentification réseau (type LOGON32_LOGON_NETWORK), là encore, seule ladresse IP de la machine distante est journalisée (champ %19).
 
-
-
 Toujours dans cas de suspicion dutilisation, par un attaquant, dun compte compromis, les évènements dauthentification sont bien plus utiles et précis que les évènements liés à lémission de tickets. La contrepartie est quil faut récupérer ces évènements sur tous les systèmes. Ceci est rapidement fastidieux, mais nécessaire, a minima sur les systèmes sensibles (contrôleurs de domaine, serveurs et postes dadministration).
-
-
 
 Lévènement 4624 permet uniquement de connaître le nom de lutilisateur authentifié, mais il ne mentionne pas les SID positionnés dans le jeton créé. Il nest donc pas possible, avec cet évènement, de déceler une éventuelle modification de la PAC ayant permis à un attaquant dajouter arbitrairement des SID à lutilisateur.
 
-
-
 Lévènement 4672 peut permettre de détecter une éventuelle modification de PAC. En effet, lors de la création dune session dauthentification, si la politique de sécurité dun système confère aux SID du jeton des privilèges sensibles (SeDebugPrivilege, SeBackupPrivilege, etc. [4]), un évènement 4672 est généré. Celui-ci indique alors les privilèges sensibles accordés.
 
-
-
 Privilèges spéciaux attribués à la nouvelle ouverture de session.
-
-
 
 Sujet :
 
@@ -3323,36 +2107,18 @@ Domaine du compte : %3 (ex : DEMO)
 
 ID douverture de session : %4 (identifiant de la session dauthentification)
 
-
-
 Privilèges : %5 (liste des privilèges sensibles accordés :
 
 SeSecurityPrivilege, SeLoadDriverPrivilege, etc.)
 
 Dans une configuration standard, les privilèges sensibles ne sont attribués quaux membres des groupes dadministration ou dopération ainsi quaux comptes de service. Ainsi, lapparition dun événement 4672 suite à lauthentification dun utilisateur nappartenant pas à un groupe accordant des privilèges sensibles, peut révéler une éventuelle modification de PAC dans un ticket Kerberos à des fins délévation de privilèges.
 
-
-
-
-
 11
 
-
-
-
-
 Protections
-
-
 Afin de se prémunir contre certains types dattaques, Microsoft ajoute, au fur et à mesure des versions successives de Windows, différents mécanismes de protection dont certains sont détaillés ci-dessous.
 
-
-
-
-
 11.1 Protected users group
-
-
 Le groupe Protected users group est un groupe utilisateur de lActive Directory (RID de 516) apparu avec Windows Server 2012 R2 [18]. Lobjectif de celui-ci est de renforcer la protection des secrets dauthentification des utilisateurs membres de ce groupe. Ainsi, pour un membre de ce groupe, le comportement de certains composants dauthentification est modifié de la façon suivante :
 
 côté contrôleur de domaine, si le niveau de fonctionnalité du domaine est a minima Windows 2012 R2 : les validations dauthentification via NETLOGON sont refusées, obligeant ainsi une authentification via Kerberos,
@@ -3363,83 +2129,39 @@ toute forme de délégation est refusée,
 
 la durée de vie des TGT est, par défaut, limitée à 4 heures ;
 
-
-
-
-
 coté client, pour les systèmes Windows prenant en compte ce groupe30 : les SSP msv1_0, WDigest et CredSSP ne mettent plus en cache des secrets dauthentification lorsquun utilisateur sauthentifie interactivement sur une machine. Il nest alors plus possible de récupérer dans la mémoire de LSASS des secrets tels que le mot de passe ou lempreinte NTLM de lutilisateur,
 
 pour Kerberos, uniquement les algorithmes de chiffrement basés sur AES sont supportés,
 
 pour Kerberos, aucune clé dérivée du mot de passe nest conservée en mémoire pour la session dauthentification de lutilisateur (cf. partie 2.4).
 
-
-
-
-
 Lobjectif de ce groupe est donc de limiter au maximum la présence de secrets dauthentification dans la mémoire de LSASS. Il est donc conseillé dy inclure le maximun dutilisateurs sensibles, en particulier les comptes des administrateurs.
-
-
 
 Cependant, comme toutes les protections, celle-ci nest pas absolue. Dune part, localement à un système, il subsiste toujours dans la mémoire de LSASS les TGT et les clés de sessions associées des utilisateurs authentifiés. Cela laisse la possibilité à un attaquant de récupérer les TGT et de les utiliser à des fins illégitimes. Dautre part, pour récupérer ce TGT, lattaquant doit disposer de privilèges dadministration sur le système, ce qui permet dautres attaques (cf. conclusion de la partie 2.4).
 
-
-
 Cependant, le dispositif du groupe Protected users group permet tout de même de limiter les secrets dauthentification récupérables. Il est plus contraignant de récupérer un TGT valable 4 heures, quune empreinte NTLM dun mot de passe qui nexpire jamais. Lutilisation du dispositif du groupe Protected users group est donc recommandée.
 
-
-
-
-
 11.2 Protected process
-
-
 La notion de protected process est apparue avec Windows Vista, plus à des fins de DRM que de sécurité. Ce mécanisme permet dinterdire à tout processus en espace utilisateur louverture dun objet de type processus ou thread protégé (à lexception de quelques droits utiles à des fins dinformation). Initialement, seuls les processus liés à la protection des droits numériques (DRM) bénéficiaient de cette protection.
-
-
 
 Avec Windows 8.1, Microsoft a étendu ce mode de fonctionnement et a activé le mécanisme sur les processus les plus critiques de Windows (smss.exe, csrss.exe, wininit.exe, winlogon.exe, services.exe). Une description plus approfondie peut être trouvée sur le blog dAlex Ionescu [3].
 
-
-
 Cependant, la protection nest pas activée par défaut sur le processus LSASS, probablement lié au fait que de nombreux éditeurs chargent dans LSASS des extensions de type SecurityProviders, Authentication Packages, Notification Packages, Security Packages, etc. Or, le chargement de modules dans un protected process est fortement restreint et ceci aurait causé beaucoup de dysfonctionnements. Il est toutefois possible dexécuter LSASS en tant que protected process en positionnant la clé RunAsPPL. Ainsi, tous les outils qui interagissent avec le processus LSASS dans le but de subtiliser des secrets dauthentification se verraient refuser louverture du processus LSASS.
-
-
 
 Évidemment, un attaquant ayant obtenu des droits dadministrateur sur un système peut contourner ce dispositif. Les méthodes actuelles passent généralement par le chargement dun pilote dans le noyau31 afin de désactiver lattribut protected process dans la structure _EPROCESS ou en lisant les pages mémoire depuis le noyau.
 
-
-
 Là encore, le dispositif des protected process nest pas une protection absolue. Toutefois, il impose à un attaquant de réaliser des opérations supplémentaires, plus « bruyantes ».
 
-
-
-
-
 11.3 Restricted admin
-
-
 Lorsquun utilisateur sauthentifie auprès dun serveur RDP, il lui transmet en clair32 son mot de passe. Le processus dauthentification dun utilisateur via RDP est identique à celui dun utilisateur interactif : les SSP sont notifiés dune authentification et récupèrent, à ce moment-là, le mot de passe afin de procéder à la mise en cache dinformations nécessaires pour permettre lauthentification implicite de lutilisateur auprès de serveurs distants.
-
-
 
 Ainsi, pour une session RDP dun utilisateur, beaucoup de secrets dauthentification se trouvent dans la mémoire de LSASS. Ils peuvent être compromis en cas de prise de contrôle du système par un attaquant.
 
-
-
 Le mode Restricted admin de RDP (du nom de loption /restrictedAdmin du client Microsoft mstsc.exe) permet de changer la façon dont lutilisateur doit sauthentifier. Le mot de passe nest alors plus requis et il suffit de réussir une authentification distante. Lintérêt est de ne plus avoir aucun secret dauthentification associé à la session dauthentification (à condition que la délégation ne soit pas approuvée pour le serveur RDP). La contrepartie est quil devient possible de sauthentifier via une attaque de type Pass-the-hash ou Pass-the-key. De plus, ladministrateur doit être sensibilisé au fait quil nest plus possible de sauthentifier auprès de serveurs tiers et quil ne doit jamais saisir son mot de passe dans la session RDP au risque dannihiler tous les bénéfices de ce mode.
-
-
 
 Le bénéfice/risque de ce mode doit donc être étudié avant dêtre mis en oeuvre. Cependant, couplé avec lutilisation imposée dune carte à puce pour lauthentification, ce mode offre des avantages avérés.
 
-
-
-
-
 11.4 Abandon des anciens algorithmes
-
-
 Dans les environnements Active Directory, trois générations de chiffrement sont supportées : DES, RC4 et AES (cf. partie 2.1). Ces algorithmes peuvent être utilisés pour :
 
 générer les parties chiffrées des messages des requêtes et des réponses entre un client, un KDC ou un serveur ;
@@ -3447,10 +2169,6 @@ générer les parties chiffrées des messages des requêtes et des réponses ent
 générer les parties chiffrées des tickets ;
 
 déterminer, pour le KDC, le type de clé de session à générer dans le ticket.
-
-
-
-
 
 Le support des familles de chiffrement par les systèmes Windows est, dans une configuration par défaut, le suivant :
 
@@ -3460,17 +2178,9 @@ Windows Vista et Windows Server 2008 : DES, RC4 et AES
 
 Windows 7 (et suivants) et Windows Server 2008 R2 (et suivants) : RC4 et AES. DES est supporté mais désactivé par défaut.
 
-
-
-
-
 La sélection dun algorithme de chiffrement dépend de plusieurs paramètres et de la version des systèmes qui les mettent en oeuvre. Une description de son fonctionnement peut être trouvée en [27], [31] et [1].
 
-
-
 Depuis Windows 7/2008R2, le paramètre « Sécurité réseau : Configurer les types de chiffrement autorisés pour Kerberos »33 de la stratégie locale de sécurité permet de définir les algorithmes supportés par le SSP Kerberos pour le chiffrement des messages. Il permet essentiellement, si nécessaire, de réactiver DES sur ces systèmes.
-
-
 
 Le choix de lalgorithme de chiffrement des tickets est différent et indépendant des capacités du client, celui-ci ne faisant que conserver les tickets sans avoir à les manipuler. Pour déterminer lalgorithme de chiffrement du ticket, le KDC commence par définir la liste des algorithmes supportés par le destinataire en analysant les attributs du compte (machine ou utilisateur) associée au service demandé pour le ticket :
 
@@ -3478,27 +2188,15 @@ loption ADS_UF_USE_DES_KEY_ONLY de lattribut userAccountControl qui, si elle est
 
 lattribut ms-DS-Supported-Encryption-Type [13] (apparu depuis Windows Server 2008) qui permet dindiquer les algorithmes supportés par le serveur. Cet attribut est en écriture pour le compte associé et doit normalement être mis à jour par celui-ci afin dindiquer les algorithmes quil supporte34 .
 
-
-
-
-
 Dans tous les cas, des algorithmes sont implicitement ajoutés (sauf si ADS_UF_USE_DES_KEY_ONLY est activé afin de forcer lutilisation de DES) :
 
 AES pour compte krbtgt (pour les TGT) et les comptes des DC ou RODC (pour les tickets de service à destination de ces serveurs), si le niveau de fonctionnalité du domaine est, a minima, Windows Server 2008 ;
 
 RC4 et DES pour tous les comptes (y compris krbtgt).
 
-
-
-
-
 Note : sur les systèmes Windows Server 2008 R2 et supérieurs, si DES est lalgorithme retenu mais quil na pas été réactivé, cela conduit à limpossibilité dutiliser Kerberos.
 
-
-
 Une fois tous les algorithmes supportés par le destinataire du ticket identifiés, le KDC détermine celui à utiliser. Par défaut, la préférence est donnée aux algorithmes les plus sûrs (AES256, AES128, RC4 puis DES). Cependant, et uniquement pour les TGT et les referral tickets, si le paramètre KdcUseRequestedEtypesForTickets [27] est activé, la préférence est donnée suivant lordre de la liste des algorithmes proposée par le client dans le champ KDC-REQ-BODY.etypes de sa requête.
-
-
 
 Le choix et le support des algorithmes de chiffrement des messages et des tickets dépend donc de divers paramètres et de la version des systèmes. Les recommandations suivantes peuvent être appliquées :
 
@@ -3508,22 +2206,10 @@ sassurer que lattribut ms-DS-Supported-Encryption-Type de tous les comptes suppo
 
 DES est désactivé pour tous les systèmes Windows 7 et Windows Server 2008 R2 et supérieurs ;
 
-
-
-
-
 sassurer que tous les mots de passe ont été changés depuis une migration dun serveur en contrôleur de domaine ou laugmentation du niveau de fonctionnalité dun domaine afin de sassurer que les clés AES des utilisateurs sont générées dans lannuaire Active Directory (cf. partie 2.3).
 
-
-
-
-
 11.5 Comportement en cas de compromission
-
-
 Lorsque le pire se produit, et quil est avéré quun attaquant a pris le contrôle des éléments les plus critiques dun Active Directory, il est nécessaire de procéder à une opération de remédiation complexe et de grande envergure. Du fait des relations dapprobation, il est nécessaire dans un environnement multi-domaines de procéder à la remédiation simultanée de tous les domaines de la forêt.
-
-
 
 Une remédiation consiste à reprendre le contrôle des éléments compromis. Une des mesures les plus emblématiques consiste à changer les mots de passe. Lors de linventaire des mots de passe à changer, deux types de compte doivent, en plus des comptes utilisateur, être pris en compte :
 
@@ -3531,28 +2217,12 @@ le compte krbtgt dont la complexité et les risques associés au processus de ch
 
 les comptes de machine qui permettent délever les privilèges dun attaquant sur chaque machine. Cette opération ne pouvant être réalisée sur lintégralité du parc, elle concerne en général les systèmes les plus sensibles (contrôleur de domaine, poste dadministration, etc.)35 .
 
-
-
-
-
 Microsoft propose désormais un guide dexplication et de préparation à ce type dopération sous la terminologie « Active Directory Forest Recovery » [17, 24].
 
-
-
-
-
 11.6 Inventaire des recommandations
-
-
 En guise de première conclusion, une liste de recommandations et de bonnes pratiques à adopter peut être établie.
 
-
-
-
-
 Attribut UAC
-
-
 Lattribut userAccountControl permet de définir de nombreuses options relatives au compte associé. Parmi toutes les options décrites dans [23], il est nécessaire de sassurer de la pertinence des options suivantes :
 
 ADS_UF_ENCRYPTED_TEXT_PASSWORD_ALLOWED : indique que le mot de passe du compte est stocké en clair dans lActive Directory. Ne devrait être activé sur aucun compte ;
@@ -3575,78 +2245,36 @@ ADS_UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION : indique que le compte est autori
 
 ADS_UF_DONT_REQUIRE_PREAUTH : indique que la préauthentification Kerberos nest pas requise (cf. partie 1.3). Ne devrait être positionné sur aucun compte.
 
-
-
-
-
 Journalisation
-
-
 centraliser36 (a minima pour les évènements inventoriés dans la partie 10) les journaux Windows dun maximum de machines (serveurs sensibles, postes dadministration, etc.), et en particulier, les journaux de tous les contrôleurs de domaine ;
 
 mettre en place une politique danalyse des journaux collectés. Cette politique doit notamment permettre la surveillance de lutilisation des comptes privilégiés.
 
-
-
-
-
 Relations dapprobation
-
-
 inventorier les relations dapprobation de tous les domaines dune même forêt ;
 
 vérifier les propriétés des relations dapprobation (intraforêt et extraforêt) ;
 
 sassurer que les relations de type External ont la propriété QUARANTINED_DOMAIN activée (cf. partie 6.5).
 
-
-
-
-
 Délégation
-
-
 inventorier les comptes étant autorisés pour une des trois formes de délégation dauthentification et supprimer, si non nécessaire, la délégation ou les délégations sélectives : délégation complète : option ADS_UF_TRUSTED_FOR_DELEGATION (cf. partie 11.6),
 
 délégation sélective : champ msDS-AllowedToDelegateTo non vide,
 
 délégation sélective avec transition de protocole : champ msDS-AllowedToDelegateTo non vide et option ADS_UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION activée (cf. partie 11.6) ;
 
-
-
-
-
 interdire la délégation pour les comptes sensibles (option ADS_UF_NOT_DELEGATED, cf. partie 11.6).
 
-
-
-
-
 Divers
-
-
 vérifier la SACL positionnée à la racine du domaine : celle-ci doit journaliser en particulier lutilisation des extended rights (ACTRL_DS_CONTROL_ACCESS) pour tous les utilisateurs du domaine37.
-
-
-
-
 
 12
 
-
-
-
-
 Conclusion
-
-
 La compromission par un attaquant dune base de comptes Active Directory se révèle être un évènement plus grave quon pourrait y penser. Outre la compromission des clés associées aux comptes utilisateur (qui peuvent être aisément changées), la compromission des clés du compte krbtgt et de celles des comptes machine a des impacts très importants.
 
-
-
 En effet, avec les clés du compte krbtgt, un attaquant dispose des clés KKDC qui lui permettent de forger des TGT et donc de pouvoir sauthentifier en usurpant lidentité de nimporte quel utilisateur du domaine. Cette situation est dautant plus grave dans des environnements Active Directory, où Kerberos est également utilisé pour lautorisation. Dans une telle situation, lattaquant est alors en mesure de générer des TGT lui permettant de modifier lappartenance aux groupes de sécurité à sa guise. Cette situation est aggravée par le fait que le changement des clés du compte krbtgt nest pas trivial et que les attaques consistant à forger des PAC et des tickets ne sont pas évidentes à détecter. Enfin, dans le cas où les relations dapprobation sont mises en oeuvre, les autres domaines sont également menacés.
-
-
 
 Afin déviter ces scénarios catastrophes, la sécurité doit être intégrée à 3 niveaux :
 
@@ -3656,13 +2284,7 @@ la supervision : la centralisation des journaux de tous les systèmes doit être
 
 la réaction : en cas de compromission dune base de comptes Active Directory (de type pwdump), un plan approprié et global doit être mis en oeuvre. Ce plan ne peut se réduire à un simple changement de quelques mots de passe.
 
-
-
-
-
 Références
-
-
 
 
 1. msds-supportedencryptiontypes - episode 1 - computer accounts. http://samba.2283325.n4.nabble.com/attachment/2516039/0/Updated%20msDS-_SupportedEncryptionTypes%20Episode%201.pdf.
@@ -3727,229 +2349,77 @@ Références
 
 31. Microsoft Open Specifications Support Team. Windows configurations for kerberos supported encryption type. http://blogs.msdn.com/b/openspecification/archive/2011/05/31/windows-_configurations-_for-_kerberos-_supported-_encryption-_type.aspx.
 
-
-
-
-
 1. Affiché également comme SYSTEM.
-
-
-
-
 
 2. SPN : service principal name. Nom unique didentification dun service dans un domaine Kerberos. Généralement de la forme service/serveur@realm.
 
-
-
-
-
 3. Cette durée, qui peut être changée, est celle par défaut sous Windows conformément à la recommandation de la RFC.
-
-
-
-
 
 4. Depuis Windows Server 2008, dans une configuration par défaut, les empreintes LM ne sont plus générées. Les champs dBCSPwd et lmPwdHistory sont donc vides et les algorithmes basés sur ce format dempreinte ne peuvent plus être utilisés.
 
-
-
-
-
 5. Lorsque des RODC sont mis en oeuvre, ce numéro sert également à désigner le RODC [28].
-
-
-
-
 
 6. Il est tout de même renseigné par les KDC dans leurs réponses.
 
-
-
-
-
 7. SSP : Security Support Provider. Composant en charge de lauthentification distante.
-
-
-
-
 
 8. Techniquement, toutes les informations sensibles sont conservées chiffrées dans la mémoire de LSASS. Ce chiffrement na quun rôle dobfuscation, la clé de chiffrement étant également dans la mémoire du processus.
 
-
-
-
-
 9. SSO : Single sign-on. Le terme authentification implicite est plus approprié aux environnements Windows.
-
-
-
-
 
 10. UPN : user principal name. Nom unique didentification dun utilisateur dans un domaine Kerberos. Généralement de la forme utilisateur@realm.
 
-
-
-
-
 11. Les algorithmes de signature sont choisis en fonction du type de clé.
-
-
-
-
 
 12. Le terme signature, bien quutilisé dans la documentation, est impropre sagissant dalgorithmes à clés symétriques. Il serait préférable de parler de code dauthentification ou de HMAC.
 
-
-
-
-
 13. Limpersonation est le mécanisme qui consiste à emprunter lidentité dun utilisateur dans le cadre du contrôle daccès.
-
-
-
-
 
 14. CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=domain,DC=tld
 
-
-
-
-
 15. Ce SSP est en charge de lauthentification via les protocoles LM, NTLM, NTLMv2, etc.
-
-
-
-
 
 16. Comme vu dans la partie 2.1, un client a plusieurs types de clés KC, mais le principe est identique pour chaque type de clé.
 
-
-
-
-
 17. Apparu avec Windows Server 2012, ce SID baptisé AUTHENTICATION_AUTHORITY_ASSERTED_IDENTITY est inséré lorsque lutilisateur sest authentifié avec ses credentials (crédentités). Il est à opposer au SID SERVICE_ASSERTED_IDENTITY (S-1-18-2) inséré lorsquun service prend lidentité dun utilisateur sans authentification de ce dernier (via le mécanisme S4U2Self, voir partie 8.1).
-
-
-
-
 
 18. Via la commande netdom /quarantine.
 
-
-
-
-
 19. Dautres termes peuvent exister tels quopen delegation, full delegation, general delegation, etc.
-
-
-
-
 
 20. Même si, comme vu dans la partie 1.9, ceci nest pas activé par défaut dans les environnements Active Directory. Dans tous les cas, ladresse du client étant dans la partie chiffrée du ticket, le client ne peut pas savoir si la restriction est effective ou non et un second TGT est systématiquement demandé.
 
-
-
-
-
 21. Ce TGT est demandé via le service TGS et pas le service AS. Il est donc nécessaire de disposer au préalable dun TGT valide. Nayant pas été obtenu par le service AS, lattribut initial ne sera pas positionné dans les options de ce nouveau TGT.
-
-
-
-
 
 22. Cela explique pourquoi deux TGT sont généralement présents pour une session dauthentification donnée (visibles avec la commande klist).
 
-
-
-
-
 23. Appelé également « Agir en tant que partie du système dexploitation ».
-
-
-
-
 
 24. En réalité, les clés KKDC puisque plusieurs types de clés sont présents (NTLM, AES, DES).
 
-
-
-
-
 25. Flexible Single Master Operation. Rôles particuliers affectés à un contrôleur de domaine donné.
-
-
-
-
 
 26. Comme vu dans la partie 2.3, lActive Directory conserve toujours les clés correspondant au mot de passe courant ainsi que celles correspondant au mot de passe précédent.
 
-
-
-
-
 27. Il est important de préciser que les journaux de tous les contrôleurs de domaine sont nécessaires. En effet, un ticket (TGT ou ticket de service) peut théoriquement être demandé à nimporte quel contrôleur.
-
-
-
-
 
 28. Pour rappel de la partie 1.9, un rejeu est détecté lorsquun authentifiant reçu nest plus valide (pour les services AS, TGS et AP) ou quil a déjà été reçu (service AP).
 
-
-
-
-
 29. La liste des évènements peut être obtenue par la commande wevtutil gp nom-fournisseur /ge :true /gm :true
-
-
-
-
 
 30. Pour linstant, seuls les systèmes 6.3 prennent en compte ce groupe, mais Microsoft a annoncé le portage de la fonctionnalité sur les éditions précédentes de Windows.
 
-
-
-
-
 31. Il faut noter quavec les éditions 64 bits de Windows, le chargement de pilote par le noyau requiert une signature numérique du pilote. Cela permet au moins de savoir, avec précision, quel outil a été utilisé.
-
-
-
-
 
 32. Le terme « en clair » signifie ici que le serveur récupère en clair le mot de passe. Bien entendu, celui-ci est chiffré lors de son transfert sur le réseau. Ce transfert peut seffectuer soit par déport des frappes clavier, soit par CredSSP.
 
-
-
-
-
 33. Ce paramètre modifie la clé HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters\SupportedEncryptionTypes.
-
-
-
-
 
 34. Il est inutile de modifier ce paramètre : les systèmes Windows Vista et supérieurs mettent à jour, à chaque démarrage, cet attribut associé à leur compte machine afin dindiquer leur support des algorithmes AES.
 
-
-
-
-
 35. Cependant, la prudence impose de procéder à la réinstallation de ces machines pendant lopération afin de sassurer de labsence de code malveillant.
-
-
-
-
 
 36. Le service de collecteur dévènements, intégrés à Windows depuis Vista, et qui repose sur WinRM, peut être utilisé. Il a lavantage de supporter la spécification dune politique de remontée des journaux permettant, entre autres, de filtrer les évènements.
 
-
-
-
-
 37. En cas dun accès à un objet de lannuaire sur lequel un audit est activé, un évènement 4662 du fournisseur Microsoft-Windows-Security-Auditing est généré.
-
-
-
-
 

@@ -84,7 +84,7 @@ def compute():
 
 
 def getciphertext():
-    with open("cyphertext.txt", "r") as f:
+    with open("cyphertext2.txt", "r") as f:
         HEXMSG = (f.read())
     MSG = hex2string(HEXMSG)
     return MSG
@@ -115,6 +115,6 @@ if __name__ == "__main__":
     candid2 = getiposcandidates(ipos2)
     print(candid2)
         """
-    kc = keycandidatesbydist(msg, 23)
+    kc = keycandidatesbydist(msg, 7)
     kcrec = keycandidatesreconstruct(kc)
     print(printashex(kcrec))
